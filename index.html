@@ -1,0 +1,4172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>신라 캠퍼스 라이프 (Silla Campus Life) - HD-2D 실내외 통합 오픈월드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none; /* 모바일 길게 누르기 메뉴/돋보기 방지 */
+            box-sizing: border-box;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: none; /* 모바일 브라우저 기본 핀치 줌·스크롤 제스처 차단 */
+            overscroll-behavior: none; /* 당겨서 새로고침 방지 */
+            background-color: #0f172a;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            touch-action: none;
+        }
+        .campus-panel {
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(10px);
+            border: 2px solid #cbd5e1;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+            color: #1e293b;
+        }
+        .dq-window {
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(23, 37, 84, 0.97) 100%);
+            border: 3px solid #f8fafc;
+            outline: 2px solid #090d16;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6), inset 0 0 12px rgba(250, 204, 21, 0.15);
+            color: #f8fafc;
+        }
+        .campus-header-panel {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 58, 138, 0.95) 100%);
+            border: 2px solid #fde047;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            color: #ffffff;
+        }
+        .campus-btn {
+            background: linear-gradient(to bottom, #2563eb 0%, #1d4ed8 100%);
+            border: 1px solid #93c5fd;
+            color: #ffffff;
+            transition: all 0.15s ease;
+        }
+        .campus-btn:hover {
+            background: linear-gradient(to bottom, #3b82f6 0%, #2563eb 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        }
+        .campus-btn:active {
+            transform: translateY(1px);
+        }
+        .action-slot {
+            position: relative;
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid #e2e8f0;
+            color: #f8fafc;
+            transition: transform 0.1s, box-shadow 0.2s, border-color 0.2s;
+        }
+        .action-slot:hover {
+            border-color: #fde047;
+            box-shadow: 0 0 14px rgba(250, 204, 21, 0.55);
+            transform: scale(1.05);
+        }
+        .action-slot:active {
+            transform: scale(0.95);
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(203, 213, 225, 0.4);
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #64748b;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="relative select-none" oncontextmenu="return false;">
+
+    <!-- 메인 게임 캔버스 -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 상단 중앙 타이틀 배너 & 현재 구역 표시 (+ 실내일 때 퇴장 버튼 표시) -->
+    <div class="fixed top-2 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-1.5">
+        <div class="campus-header-panel px-6 py-1.5 rounded-full hidden sm:flex items-center gap-3 shadow-xl pointer-events-none">
+            <span class="text-yellow-300 text-lg" id="headerBadgeIcon">🎓</span>
+            <div class="text-center">
+                <h1 class="text-sm md:text-base font-black tracking-wide text-white">신라대학교 캠퍼스 라이프 <span class="text-[10px] text-amber-300 font-bold">HD-2D</span></h1>
+                <p id="currentZoneText" class="text-[11px] font-medium text-yellow-200">도서관 & 중앙 캠퍼스</p>
+            </div>
+            <span class="text-yellow-300 text-lg">🌳</span>
+        </div>
+        <!-- 실내 맵 전용 빠른 퇴장 버튼 (모바일에서도 상단 중앙에 항상 표시) -->
+        <button id="exitIndoorBtn" onclick="exitIndoorMap()" class="hidden bg-rose-600 hover:bg-rose-500 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg border-2 border-yellow-300 flex items-center gap-1.5 transition-transform active:scale-95 whitespace-nowrap">
+            <span>🚪</span> <span>야외 캠퍼스로 나가기 [ESC]</span>
+        </button>
+    </div>
+
+    <!-- 좌측 상단: 학생증 상태창 (모바일에서 겹치지 않도록 자동 축소) -->
+    <div class="fixed top-2 left-2 md:top-3 md:left-3 z-20 w-56 md:w-80 campus-panel rounded-2xl p-2.5 md:p-3.5 shadow-xl origin-top-left scale-90 sm:scale-100">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+                <div class="w-9 h-9 md:w-11 md:h-11 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-900 border-2 border-yellow-400 flex items-center justify-center text-lg md:text-xl shadow-inner text-white" id="playerClassIcon">
+                    🎓
+                </div>
+                <div>
+                    <div class="flex items-center gap-1">
+                        <span id="playerTitleBadge" class="text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">새내기 대학생</span>
+                        <span class="text-[11px] md:text-xs text-indigo-700 font-extrabold"><span id="uiLevel">1</span>학년</span>
+                    </div>
+                    <div class="text-xs md:text-sm font-black text-slate-800">신라대 재학생</div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-[11px] md:text-xs text-amber-600 font-extrabold flex items-center justify-end gap-0.5">
+                    <span>💳</span><span id="uiGold">5,000</span> P
+                </div>
+                <div class="text-[10px] md:text-[11px] text-slate-600 font-medium">
+                    지식 <span id="uiInt" class="font-bold text-blue-700">12</span> | 친화 <span id="uiCharm" class="font-bold text-pink-600">12</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 컨디션 (체력) 바 -->
+        <div class="mb-1.5">
+            <div class="flex justify-between text-[10px] font-bold text-slate-600 mb-0.5 px-0.5">
+                <span>⚡ 컨디션 (HP)</span>
+                <span id="uiHpText">100 / 100</span>
+            </div>
+            <div class="w-full h-2 md:h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                <div id="uiHpBar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-150" style="width: 100%"></div>
+            </div>
+        </div>
+
+        <!-- 학업 집중력 바 -->
+        <div class="mb-1.5">
+            <div class="flex justify-between text-[10px] font-bold text-slate-600 mb-0.5 px-0.5">
+                <span>💡 집중력 (MP)</span>
+                <span id="uiMpText">100 / 100</span>
+            </div>
+            <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div id="uiMpBar" class="h-full bg-gradient-to-r from-blue-600 to-sky-400 transition-all duration-150" style="width: 100%"></div>
+            </div>
+        </div>
+
+        <!-- 학점/진급 경험치 바 -->
+        <div>
+            <div class="flex justify-between text-[10px] font-bold text-slate-600 mb-0.5 px-0.5">
+                <span>📚 학기 이수율 (EXP)</span>
+                <span id="uiExpText">0 / 100</span>
+            </div>
+            <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div id="uiExpBar" class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-200" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- 빠른 메뉴 버튼 -->
+        <div class="grid grid-cols-4 gap-1 mt-2.5 pt-2 border-t border-slate-200 text-[10px] md:text-[11px] font-bold">
+            <button onclick="openInventoryModal()" class="campus-btn py-1.5 rounded-lg flex items-center justify-center gap-0.5">🪪 학생증</button>
+            <button onclick="openWorldMapModal()" class="campus-btn py-1.5 rounded-lg flex items-center justify-center gap-0.5">🗺️ 맵</button>
+            <button onclick="saveGameData(true)" class="campus-btn py-1.5 rounded-lg flex items-center justify-center gap-0.5">💾 저장</button>
+            <button onclick="openHelpModal()" class="campus-btn py-1.5 rounded-lg flex items-center justify-center gap-0.5">ℹ️ 안내</button>
+        </div>
+    </div>
+
+    <!-- 우측 상단: 미니맵 & 캠퍼스 투어 미션 트래커 (모바일 대응 스케일링) -->
+    <div class="fixed top-2 right-2 md:top-3 md:right-3 z-20 flex flex-col items-end gap-1.5 origin-top-right scale-75 sm:scale-100">
+        <!-- 미니맵 컨테이너 -->
+        <div class="campus-panel p-2.5 rounded-2xl shadow-xl flex flex-col items-center">
+            <div class="flex items-center justify-between w-full mb-1.5 px-1">
+                <span class="text-[11px] font-extrabold text-slate-700 flex items-center gap-1" id="minimapTitle">🧭 위성 캠퍼스 레이더</span>
+                <button onclick="openWorldMapModal()" class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-md font-bold hover:bg-blue-700">🚌 셔틀이동</button>
+            </div>
+            <div class="relative border-2 border-slate-400 rounded-xl overflow-hidden shadow-inner bg-[#2d4c1e]">
+                <canvas id="minimapCanvas" width="150" height="195" class="block cursor-pointer" title="클릭하여 전체 캠퍼스 지도 및 셔틀 이동 열기" onclick="openWorldMapModal()"></canvas>
+            </div>
+        </div>
+
+        <!-- 대학생활 미션 트래커 -->
+        <div class="campus-panel w-60 md:w-72 p-2.5 md:p-3 rounded-2xl shadow-xl">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-1">
+                <span class="text-xs font-extrabold text-slate-800 flex items-center gap-1">📋 오늘의 캠퍼스 일정</span>
+                <span id="questProgressBadge" class="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">단계 1/5</span>
+            </div>
+            <div id="questTitle" class="text-xs font-extrabold text-blue-900 mb-1">1교시: 신입생 기숙사 입소</div>
+            <div id="questDesc" class="hidden sm:block text-[11px] text-slate-600 leading-snug mb-2">동쪽 '글로벌타운 & 제3기숙사' 실내로 들어가 사감 선생님과 대화하세요.</div>
+            <div class="flex items-center justify-between text-[11px] bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                <span id="questTargetText" class="font-bold text-slate-700">목표: 글로벌타운 방문</span>
+                <button onclick="guideToQuestTarget()" class="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-2 py-0.5 rounded">길안내</button>
+            </div>
+
+            <!-- 동아리/서브 미션 요약 -->
+            <div id="subQuestBox" class="mt-2 pt-1.5 border-t border-slate-200 hidden">
+                <div class="text-[11px] font-bold text-purple-700 flex items-center justify-between">
+                    <span id="subQuestTitle">[홍보] 캠퍼스 학우들과 인사하기</span>
+                    <span id="subQuestCount">0/3</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 좌측 하단: 모바일용 가상 방향키 패드 (하단 액션바와 겹치지 않도록 위치 상향 & pointercancel 추가) -->
+    <div class="fixed bottom-20 left-3 z-30 md:hidden flex flex-col items-center gap-1 opacity-90" oncontextmenu="return false;">
+        <button onpointerdown="setVirtualKey('w', true)" onpointerup="setVirtualKey('w', false)" onpointerleave="setVirtualKey('w', false)" onpointercancel="setVirtualKey('w', false)" class="w-11 h-11 rounded-xl dq-window flex items-center justify-center text-base font-bold active:scale-95">▲</button>
+        <div class="flex gap-1">
+            <button onpointerdown="setVirtualKey('a', true)" onpointerup="setVirtualKey('a', false)" onpointerleave="setVirtualKey('a', false)" onpointercancel="setVirtualKey('a', false)" class="w-11 h-11 rounded-xl dq-window flex items-center justify-center text-base font-bold active:scale-95">◀</button>
+            <button onpointerdown="setVirtualKey('s', true)" onpointerup="setVirtualKey('s', false)" onpointerleave="setVirtualKey('s', false)" onpointercancel="setVirtualKey('s', false)" class="w-11 h-11 rounded-xl dq-window flex items-center justify-center text-base font-bold active:scale-95">▼</button>
+            <button onpointerdown="setVirtualKey('d', true)" onpointerup="setVirtualKey('d', false)" onpointerleave="setVirtualKey('d', false)" onpointercancel="setVirtualKey('d', false)" class="w-11 h-11 rounded-xl dq-window flex items-center justify-center text-base font-bold active:scale-95">▶</button>
+        </div>
+    </div>
+
+    <!-- 중앙 하단: 건물 실내 입장 & NPC 대화 프롬프트 배너 -->
+    <div id="interactBanner" class="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-20 hidden w-[90vw] max-w-md justify-center">
+        <button onclick="triggerInteraction()" class="dq-window px-4 py-2 md:px-5 md:py-2.5 rounded-xl flex items-center gap-3 animate-bounce cursor-pointer w-full justify-center">
+            <span class="text-xl md:text-2xl shrink-0" id="interactIcon">🏫</span>
+            <div class="text-left overflow-hidden">
+                <div class="text-xs font-black text-yellow-300 truncate" id="interactName">글로벌타운 & 제3기숙사</div>
+                <div class="text-[10px] text-white font-bold truncate" id="interactSub">▶ [F] 키 또는 터치하여 건물 실내로 입장하기</div>
+            </div>
+        </button>
+    </div>
+
+    <!-- 하단 중앙: 대학생활 커맨드 액션 바 (모바일 화면 폭에 맞게 축소) -->
+    <div class="fixed bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 md:gap-2.5 dq-window px-2.5 py-1.5 md:px-4 md:py-2 rounded-2xl scale-90 md:scale-100 origin-bottom" oncontextmenu="return false;">
+        <button onclick="performGreetAction()" class="action-slot w-14 h-14 rounded-xl flex flex-col items-center justify-center p-1">
+            <span class="text-xl">💬</span>
+            <span class="text-[10px] text-slate-100 font-bold mt-0.5">대화/인사</span>
+            <span class="absolute top-0.5 left-1.5 text-[9px] text-yellow-300 font-extrabold">Space</span>
+        </button>
+
+        <button onclick="useCampusAction(1)" class="action-slot w-14 h-14 rounded-xl flex flex-col items-center justify-center p-1 overflow-hidden">
+            <span class="text-xl">🏃</span>
+            <span class="text-[10px] text-slate-100 font-bold mt-0.5">대시이동</span>
+            <span class="absolute top-0.5 left-1.5 text-[9px] text-yellow-300 font-extrabold">1</span>
+            <div id="cdOverlay1" class="absolute inset-0 bg-black/80 flex items-center justify-center text-xs font-bold text-yellow-300 hidden"></div>
+        </button>
+
+        <button onclick="useCampusAction(2)" class="action-slot w-14 h-14 rounded-xl flex flex-col items-center justify-center p-1 overflow-hidden">
+            <span class="text-xl">☕</span>
+            <span class="text-[10px] text-slate-100 font-bold mt-0.5">차차커피</span>
+            <span class="absolute top-0.5 left-1.5 text-[9px] text-yellow-300 font-extrabold">2</span>
+            <span class="absolute bottom-0.5 right-1 text-[9px] font-bold text-emerald-300" id="coffeeCountBadge">x3</span>
+            <div id="cdOverlay2" class="absolute inset-0 bg-black/80 flex items-center justify-center text-xs font-bold text-yellow-300 hidden"></div>
+        </button>
+
+        <button onclick="useCampusAction(3)" class="action-slot w-14 h-14 rounded-xl flex flex-col items-center justify-center p-1 overflow-hidden">
+            <span class="text-xl">📸</span>
+            <span class="text-[10px] text-slate-100 font-bold mt-0.5">추억촬영</span>
+            <span class="absolute top-0.5 left-1.5 text-[9px] text-yellow-300 font-extrabold">3</span>
+            <div id="cdOverlay3" class="absolute inset-0 bg-black/80 flex items-center justify-center text-xs font-bold text-yellow-300 hidden"></div>
+        </button>
+
+        <button onclick="useCampusAction(4)" class="action-slot w-14 h-14 rounded-xl flex flex-col items-center justify-center p-1 overflow-hidden">
+            <span class="text-xl">📖</span>
+            <span class="text-[10px] text-slate-100 font-bold mt-0.5">노트정독</span>
+            <span class="absolute top-0.5 left-1.5 text-[9px] text-yellow-300 font-extrabold">4</span>
+            <div id="cdOverlay4" class="absolute inset-0 bg-black/80 flex items-center justify-center text-xs font-bold text-yellow-300 hidden"></div>
+        </button>
+    </div>
+
+    <!-- 실내 NPC 대화 & 건물 활동 모달 (모바일 스크롤 및 여백 최적화) -->
+    <div id="poiModal" class="fixed inset-0 bg-slate-900/75 z-40 hidden items-center justify-center p-3 md:p-4">
+        <div class="campus-panel max-w-3xl w-full max-h-[90vh] overflow-y-auto custom-scroll rounded-3xl p-4 md:p-8 relative shadow-2xl border-4 border-blue-400">
+            <button onclick="closePoiModal()" class="absolute top-4 right-4 md:top-5 md:right-5 w-9 h-9 md:w-10 md:h-10 rounded-full bg-slate-200 text-slate-700 font-black text-base md:text-lg hover:bg-slate-300 flex items-center justify-center">✕</button>
+            
+            <div class="flex items-center gap-3 md:gap-4 border-b-2 border-slate-200 pb-3 md:pb-4 mb-4 md:mb-5 pr-10">
+                <div id="modalPoiIcon" class="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-blue-50 text-2xl md:text-4xl flex items-center justify-center border-2 border-blue-400 shadow-md shrink-0">🏫</div>
+                <div>
+                    <span id="modalPoiSubName" class="text-[10px] md:text-xs font-bold text-blue-700 bg-blue-100 px-2.5 py-0.5 md:px-3 md:py-1 rounded-full">실내 NPC 대화 중</span>
+                    <h2 id="modalPoiTitle" class="text-lg md:text-2xl font-black text-slate-900 mt-1">글로벌타운 & 기숙사</h2>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <div class="text-xs font-extrabold text-slate-600 mb-2">👥 이 건물 실내에 있는 상주 인물 (터치하여 대화 상대 변경)</div>
+                <div id="modalNpcTabs" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <div class="dq-window rounded-2xl p-4 md:p-6 mb-4 md:mb-6 shadow-inner">
+                <div class="flex items-center justify-between mb-2 md:mb-3 border-b border-slate-600 pb-2">
+                    <div id="modalNpcName" class="text-xs md:text-sm font-black text-yellow-300">👩‍🏫 사감 선생님</div>
+                    <span id="modalNpcRole" class="text-[11px] md:text-xs font-bold text-blue-200">생활관 멘토</span>
+                </div>
+                <p id="modalNpcDialog" class="text-sm md:text-lg text-white font-medium leading-relaxed min-h-[3.5rem] flex items-center"></p>
+            </div>
+
+            <div id="modalActionContainer" class="space-y-2.5 md:space-y-3 max-h-64 md:max-h-72 overflow-y-auto custom-scroll pr-1"></div>
+        </div>
+    </div>
+
+    <!-- 전체 캠퍼스 맵 & 셔틀버스 빠른 이동 모달 -->
+    <div id="worldMapModal" class="fixed inset-0 bg-slate-900/65 z-40 hidden items-center justify-center p-3 md:p-4">
+        <div class="campus-panel max-w-2xl w-full max-h-[90vh] overflow-y-auto custom-scroll rounded-2xl p-4 md:p-6 relative shadow-2xl">
+            <button onclick="closeWorldMapModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-bold hover:bg-slate-300">✕</button>
+            <h2 class="text-base md:text-lg font-black text-slate-800 mb-1 flex items-center gap-2 pr-8">🗺️ 신라대학교 실제 캠퍼스 안내도 (13개 건물 빠른 이동)</h2>
+            <p class="text-xs text-slate-600 mb-4">위성 지도에 표시된 실제 캠퍼스 건물로 순환 셔틀을 타고 즉시 이동하거나 건물 실내로 들어갈 수 있습니다.</p>
+
+            <div id="warpGridList" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 md:max-h-96 overflow-y-auto custom-scroll pr-1"></div>
+        </div>
+    </div>
+
+    <!-- 모바일 학생증 및 포트폴리오 모달 -->
+    <div id="inventoryModal" class="fixed inset-0 bg-slate-900/65 z-40 hidden items-center justify-center p-3 md:p-4">
+        <div class="campus-panel max-w-lg w-full max-h-[90vh] overflow-y-auto custom-scroll rounded-2xl p-4 md:p-6 relative shadow-2xl">
+            <button onclick="closeInventoryModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-bold hover:bg-slate-300">✕</button>
+            <h2 class="text-base md:text-lg font-black text-slate-800 mb-4 flex items-center gap-2 pr-8">🪪 모바일 학생증 & 캠퍼스 활동 기록</h2>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-xs">
+                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <div class="font-extrabold text-blue-900 mb-2 border-b border-slate-200 pb-1">📊 나의 대학생활 역량</div>
+                    <div class="space-y-1.5 text-slate-700">
+                        <div class="flex justify-between"><span>현재 학년:</span><b id="invLv">1학년</b></div>
+                        <div class="flex justify-between"><span>캠퍼스 칭호:</span><b id="invJob">새내기 대학생</b></div>
+                        <div class="flex justify-between"><span>전공 지식:</span><b id="invInt" class="text-blue-600">12</b></div>
+                        <div class="flex justify-between"><span>창의·감성:</span><b id="invArt" class="text-purple-600">10</b></div>
+                        <div class="flex justify-between"><span>인싸력(친화):</span><b id="invCharm" class="text-pink-600">12</b></div>
+                        <div class="flex justify-between"><span>체력·건강:</span><b id="invFit" class="text-emerald-600">10</b></div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <div class="font-extrabold text-blue-900 mb-2 border-b border-slate-200 pb-1">🎒 소지품 & 소속</div>
+                    <div class="space-y-2 text-slate-700">
+                        <div>
+                            <span class="text-[11px] text-slate-500">소속 학부/전공:</span>
+                            <div id="invMajorName" class="font-bold text-slate-800">자율전공학부</div>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-slate-500">가입 중앙동아리:</span>
+                            <div id="invClubName" class="font-bold text-indigo-700">미가입 (학생회관에서 가입)</div>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-slate-500">학업 장비:</span>
+                            <div id="invGearName" class="font-bold text-emerald-700">기본 다이어리 & 볼펜</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+                <div class="font-extrabold text-blue-900 mb-2">🏅 나의 캠퍼스 활동 배지 & 아이템</div>
+                <div id="inventoryItemsList" class="grid grid-cols-2 gap-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 도움말 모달 -->
+    <div id="helpModal" class="fixed inset-0 bg-slate-900/65 z-40 hidden items-center justify-center p-3 md:p-4">
+        <div class="campus-panel max-w-md w-full rounded-2xl p-5 md:p-6 relative shadow-2xl">
+            <button onclick="closeHelpModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-bold hover:bg-slate-300">✕</button>
+            <h2 class="text-base md:text-lg font-black text-slate-800 mb-3">🏫 신라 캠퍼스 라이프 (모바일 & PC 가이드)</h2>
+            <ul class="text-xs space-y-2.5 text-slate-700 leading-relaxed">
+                <li>• <b>이동 방법</b>: 모바일에서는 <b>좌측 하단 방향키</b>를 누르거나 <b>화면 빈 곳을 터치·드래그</b>하여 이동할 수 있습니다. (PC: WASD / 방향키)</li>
+                <li>• <b>건물 실내 입장</b>: 야외 건물 입구에서 건물을 터치하거나 하단 배너(<kbd class="px-1.5 py-0.5 bg-slate-800 text-white rounded">F</kbd>)를 누르면 <b>건물 내부 도트 실내 맵</b>으로 들어갑니다!</li>
+                <li>• <b>실내 NPC 대화</b>: 실내 맵 안에 있는 교수님, 사서, 학우 NPC를 직접 터치하거나 다가가서 <kbd class="px-1.5 py-0.5 bg-slate-800 text-white rounded">대화/인사</kbd> 버튼을 누르면 수업·활동 메뉴가 열립니다.</li>
+                <li>• <b>실내에서 나가기</b>: 실내 맵 아래쪽 <b>붉은 출구 매트(EXIT)</b>를 터치하거나 상단 <b>[야외 캠퍼스로 나가기]</b> 버튼을 누르면 밖으로 나옵니다.</li>
+            </ul>
+            <div class="mt-5 pt-3 border-t border-slate-200 flex justify-between">
+                <button onclick="resetGameData()" class="text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-lg">초기화</button>
+                <button onclick="closeHelpModal()" class="campus-btn text-xs font-bold px-5 py-1.5 rounded-lg">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 상단 알림 토스트 메시지 -->
+    <div id="toastMessage" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-300 w-[90vw] max-w-md text-center">
+        <div class="dq-window px-4 py-2.5 rounded-full text-xs md:text-sm font-bold text-yellow-300 shadow-2xl">
+            알림 메시지
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. 월드맵 설정 및 신라대학교 위성 지도 기반 13개 실제 건물 데이터
+        // =========================================================================
+        const WORLD_W = 2600;
+        const WORLD_H = 3400;
+        const TILE_SIZE = 16;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const minimapCanvas = document.getElementById('minimapCanvas');
+        const miniCtx = minimapCanvas.getContext('2d');
+
+        const worldBgCanvas = document.createElement('canvas');
+        worldBgCanvas.width = WORLD_W;
+        worldBgCanvas.height = WORLD_H;
+        const bgCtx = worldBgCanvas.getContext('2d');
+
+        const treeSprites = {};
+
+        // 첨부 위성 사진의 실제 도로망 연결 구조
+        const ROAD_PATHS = [
+            [{x: 120, y: 1560}, {x: 460, y: 1600}, {x: 920, y: 1600}, {x: 1180, y: 1600}, {x: 1680, y: 1580}],
+            [{x: 460, y: 1600}, {x: 340, y: 1420}, {x: 220, y: 1180}, {x: 310, y: 840}, {x: 560, y: 620}, {x: 960, y: 540}, {x: 1380, y: 340}],
+            [{x: 460, y: 1600}, {x: 560, y: 1320}, {x: 660, y: 980}, {x: 960, y: 780}, {x: 1320, y: 920}, {x: 1560, y: 1080}, {x: 1680, y: 1280}, {x: 1680, y: 1580}],
+            [{x: 960, y: 780}, {x: 1180, y: 960}, {x: 1220, y: 1260}, {x: 1180, y: 1600}],
+            [{x: 960, y: 780}, {x: 1020, y: 520}, {x: 1420, y: 520}, {x: 1750, y: 600}, {x: 2050, y: 640}, {x: 2250, y: 580}],
+            [{x: 2050, y: 640}, {x: 1960, y: 1080}, {x: 1680, y: 1580}],
+            [{x: 1680, y: 1580}, {x: 1420, y: 1920}, {x: 1480, y: 2220}, {x: 1680, y: 2480}, {x: 1840, y: 2740}, {x: 2060, y: 2920}, {x: 2200, y: 2980}],
+            [{x: 1680, y: 1580}, {x: 2040, y: 1820}, {x: 2180, y: 2120}, {x: 2120, y: 2420}, {x: 1760, y: 2320}, {x: 1480, y: 2220}],
+            [{x: 2120, y: 2420}, {x: 2260, y: 2740}, {x: 2200, y: 2980}],
+        ];
+
+        // 13개 실제 캠퍼스 건물 및 실내 상주 NPC 목록
+        const POIS = [
+            {
+                id: 'main_gate',
+                name: '정문 & 덕포지 생태연못',
+                subName: '신라대 정문 안내소 · 셔틀승강장 · 덕포지',
+                roomTheme: 'lobby',
+                x: 520,
+                y: 1520,
+                radius: 125,
+                icon: '🚌',
+                color: '#eab308',
+                npcs: [
+                    {
+                        name: '박 기사님',
+                        role: '캠퍼스 순환 셔틀버스 운전원',
+                        icon: '🚌',
+                        hair: '#334155', top: '#1d4ed8', bottom: '#0f172a', acc: 'cap',
+                        dialog: '어서 오세요! 정문 안내소와 셔틀 승강장입니다. 바로 옆에 아름다운 덕포지 연못이 보이죠? 캠퍼스가 넓으니 미니맵 셔틀 이동을 언제든 활용하세요!'
+                    },
+                    {
+                        name: '김지훈 매니저',
+                        role: '학생복지 & 장학 안내위원',
+                        icon: '👨‍💼',
+                        hair: '#1e293b', top: '#0f766e', bottom: '#1e293b', acc: 'glasses',
+                        dialog: '학우님 반갑습니다! 캠퍼스 내 학우들과 인사한 기록과 스냅 사진 기록을 정산하여 활동 장학 포인트를 지급해 드리고 있어요.'
+                    }
+                ]
+            },
+            {
+                id: 'art_museum',
+                name: '예술관 · 박물관 · 평생교육관',
+                subName: '우편취급국 · 사상구 하하센터 · 주차장2',
+                roomTheme: 'gallery',
+                x: 420,
+                y: 1120,
+                radius: 145,
+                icon: '🎨',
+                color: '#a855f7',
+                npcs: [
+                    {
+                        name: '한소희 교수',
+                        role: '예술대학 시각디자인 지도교수',
+                        icon: '👩‍🎨',
+                        hair: '#581c87', top: '#ec4899', bottom: '#1e293b', acc: 'beret',
+                        dialog: '예술관 아뜰리에와 박물관 전시실 내부에 오신 걸 환영해요! 이곳에서 실기 워크숍을 수강하면 창의·감성 역량이 크게 오른답니다!'
+                    },
+                    {
+                        name: '박물관 학예사',
+                        role: '신라대 박물관 & 우편취급국 담당',
+                        icon: '🏺',
+                        hair: '#451a03', top: '#7e22ce', bottom: '#1e293b', acc: 'glasses',
+                        dialog: '박물관 원형 전시실에는 귀중한 역사 유물들이 전시되어 있어요. 전시 홍보 미션을 도와주시면 커피 쿠폰과 장학금을 드릴게요!'
+                    }
+                ]
+            },
+            {
+                id: 'intl_edu',
+                name: '국제교육관 (GS25 · 무인복사실)',
+                subName: '24시 무인복사실 · 편의점 · 어학강의동',
+                roomTheme: 'store',
+                x: 780,
+                y: 680,
+                radius: 135,
+                icon: '🏪',
+                color: '#06b6d4',
+                npcs: [
+                    {
+                        name: 'GS25 알바생 민지',
+                        role: '국제교육관 1층 편의점 스태프',
+                        icon: '🏪',
+                        hair: '#7c2d12', top: '#0284c7', bottom: '#1e293b', acc: 'none',
+                        dialog: '어서 오세요! 국제교육관 실내 GS25 편의점과 24시 무인복사실입니다. 시원한 아이스 아메리카노와 간식, 전공 요약본 제본을 이용해 보세요!'
+                    },
+                    {
+                        name: '제임스 원어민 교수',
+                        role: '국제교육관 글로벌 어학센터',
+                        icon: '👨‍🏫',
+                        hair: '#facc15', top: '#2563eb', bottom: '#334155', acc: 'none',
+                        dialog: 'Welcome! 국제교육관 어학 실습실에서 원어민 회화 수업이 진행 중입니다. 자유롭게 참여해 보세요!'
+                    }
+                ]
+            },
+            {
+                id: 'humanities',
+                name: '인문관 (차차커피코 · 교육연수원)',
+                subName: '인문사회과학관 · 차차커피코 · 주차장4/5',
+                roomTheme: 'cafe_lecture',
+                x: 1180,
+                y: 580,
+                radius: 140,
+                icon: '☕',
+                color: '#3b82f6',
+                npcs: [
+                    {
+                        name: '정약용 교수',
+                        role: '인문학부 & 교육연수원 석좌교수',
+                        icon: '👨‍🏫',
+                        hair: '#64748b', top: '#1e3a8a', bottom: '#0f172a', acc: 'glasses',
+                        dialog: '인문관 세미나실에 온 것을 환영하네! 옆의 차차커피코에서 커피도 한 잔 마시고, 내가 내는 인문교양 퀴즈를 풀어 학점(EXP)과 장학금을 받아 가게나.'
+                    },
+                    {
+                        name: '차차커피코 바리스타',
+                        role: '인문관 캠퍼스 카페 매니저',
+                        icon: '☕',
+                        hair: '#451a03', top: '#ea580c', bottom: '#1e293b', acc: 'beret',
+                        dialog: '인문관 실내 명물 차차커피코 매장입니다! 갓 내린 아이스 아메리카노 한 잔이면 컨디션과 집중력이 단숨에 충전될 거예요!'
+                    }
+                ]
+            },
+            {
+                id: 'hq_gym',
+                name: '대학본부동 · 종합강의동 · 체육관',
+                subName: '총장실 · 학사지원팀 · 실내체육관',
+                roomTheme: 'hq',
+                x: 1580,
+                y: 380,
+                radius: 155,
+                icon: '🏛️',
+                color: '#0d9488',
+                npcs: [
+                    {
+                        name: '학사지원팀장',
+                        role: '대학본부동 전공 배정 및 학사 총괄',
+                        icon: '👨‍💼',
+                        hair: '#0f172a', top: '#0f766e', bottom: '#1e293b', acc: 'glasses',
+                        dialog: '반갑습니다! 대학본부동 학사지원팀 실내입니다. 이곳에서 희망 학부(전공) 공식 배정과 성적 우수 장학증서를 수여하고 있습니다.'
+                    },
+                    {
+                        name: '실내체육관 코치',
+                        role: '북측 체육관 스포츠 지도자',
+                        icon: '🏀',
+                        hair: '#111827', top: '#dc2626', bottom: '#f8fafc', acc: 'band',
+                        dialog: '실내체육관 코트에서 농구와 배드민턴 강습이 열리고 있습니다! 함께 땀 흘리며 체력을 단련해 보세요!'
+                    }
+                ]
+            },
+            {
+                id: 'globaltown',
+                name: '글로벌타운 · B동 · 제3기숙사',
+                subName: '학생생활관 기숙사 단지 · 글로벌 라운지',
+                roomTheme: 'dorm',
+                x: 2220,
+                y: 560,
+                radius: 165,
+                icon: '🏢',
+                color: '#0ea5e9',
+                npcs: [
+                    {
+                        name: '사감 선생님',
+                        role: '글로벌타운 & 제3기숙사 관장',
+                        icon: '👩‍🏫',
+                        hair: '#3b2314', top: '#0284c7', bottom: '#1e293b', acc: 'glasses',
+                        dialog: '글로벌타운 기숙사 실내 라운지에 오신 걸 환영해요! 침대와 소파가 마련되어 있으니 언제든 무료로 컨디션과 집중력을 100% 회복하세요.'
+                    },
+                    {
+                        name: '레오 & 에밀리',
+                        role: '글로벌타운 외국인 유학생',
+                        icon: '🌍',
+                        hair: '#facc15', top: '#10b981', bottom: '#1e3a8a', acc: 'none',
+                        dialog: 'Hello! 기숙사 글로벌 라운지 테이블에서 한국 학생들과 언어 교환 스터디를 하고 있어요. 편하게 대화 걸어주세요!'
+                    }
+                ]
+            },
+            {
+                id: 'education',
+                name: '사범관',
+                subName: '사범대학 강의동 · 임용고시실 · 주차장3',
+                roomTheme: 'classroom',
+                x: 1660,
+                y: 860,
+                radius: 130,
+                icon: '🎓',
+                color: '#10b981',
+                npcs: [
+                    {
+                        name: '김홍도 사범대 교수',
+                        role: '사범대학 교육학 지도교수',
+                        icon: '👨‍🏫',
+                        hair: '#475569', top: '#059669', bottom: '#1e293b', acc: 'glasses',
+                        dialog: '사범관 대강의실에 잘 왔네! 교단 칠판 앞에서 모의 수업 시연과 교육학 특강에 참여하면 발표력과 전공 지식을 동시에 키울 수 있다네.'
+                    },
+                    {
+                        name: '임용 스터디장 수빈',
+                        role: '국어교육과 4학년',
+                        icon: '📖',
+                        hair: '#1e1b4b', top: '#ec4899', bottom: '#334155', acc: 'none',
+                        dialog: '사범관 스터디룸에서 임용고시 준비를 하고 있어요! 같이 교육학 요약 노트를 복습하면 시험 준비에 큰 도움이 될 거예요!'
+                    }
+                ]
+            },
+            {
+                id: 'commerce',
+                name: '상경관',
+                subName: '경상대학 · 글로벌비즈니스 · 창업보육실',
+                roomTheme: 'classroom',
+                x: 1680,
+                y: 1200,
+                radius: 135,
+                icon: '📈',
+                color: '#f59e0b',
+                npcs: [
+                    {
+                        name: '경영학부 학장',
+                        role: '상경관 창업 & 비즈니스 멘토',
+                        icon: '👨‍💼',
+                        hair: '#334155', top: '#d97706', bottom: '#0f172a', acc: 'glasses',
+                        dialog: '상경관 원형 돔 세미나실 내부입니다! 대학생 모의 창업 아이디어 피칭 대회에 도전해 최대 3,000P의 창업장학금을 획득해 보세요!'
+                    },
+                    {
+                        name: '창업동아리 대표 민재',
+                        role: '글로벌비즈니스학부 3학년',
+                        icon: '💼',
+                        hair: '#0f172a', top: '#2563eb', bottom: '#1e293b', acc: 'none',
+                        dialog: '상경관 학생들과 함께 스타트업 사업계획서를 작성 중이에요! 학우님도 좋은 아이디어가 있다면 피칭에 참여해 보세요!'
+                    }
+                ]
+            },
+            {
+                id: 'arena',
+                name: '운동장 & 테니스장',
+                subName: '중앙 대운동장(모래구장) · 테니스장 · 주차장6',
+                roomTheme: 'gym',
+                x: 920,
+                y: 1080,
+                radius: 185,
+                icon: '⚽',
+                color: '#d97706',
+                npcs: [
+                    {
+                        name: '마동석 체육교수',
+                        role: '중앙 운동장 & 테니스장 지도교수',
+                        icon: '🏃‍♂️',
+                        hair: '#0f172a', top: '#16a34a', bottom: '#f8fafc', acc: 'band',
+                        dialog: '운동장 실내 클럽하우스에 잘 왔다! 학과 대항 친선 축구와 테니스 클럽 활동으로 건강과 인싸력을 모두 챙겨보게!'
+                    },
+                    {
+                        name: '서예진 응원단장',
+                        role: '캠퍼스 버스킹 & 체육대회 기획단',
+                        icon: '🎤',
+                        hair: '#7c2d12', top: '#db2777', bottom: '#1e293b', acc: 'scarf',
+                        dialog: '이곳 동아리 대기실에서 저녁 버스킹 공연을 준비하고 있어요! 공연을 관람하며 집중력을 회복해 보세요!'
+                    }
+                ]
+            },
+            {
+                id: 'library',
+                name: '신라대학교 도서관',
+                subName: '중앙도서관 · 원형 로비 타워 · 열람실 · 주차장1',
+                roomTheme: 'library',
+                x: 1220,
+                y: 1380,
+                radius: 145,
+                icon: '📚',
+                color: '#2563eb',
+                npcs: [
+                    {
+                        name: '최윤아 수석사서',
+                        role: '중앙도서관 학술정보팀',
+                        icon: '👩‍💼',
+                        hair: '#1e1b4b', top: '#2563eb', bottom: '#1e293b', acc: 'glasses',
+                        dialog: '신라대학교 중앙도서관 실내 열람실에 오신 것을 환영합니다! 가득 찬 서가와 독서 테이블에서 조용히 집중해 공부해 보세요!'
+                    },
+                    {
+                        name: '열람실 장학생 도훈',
+                        role: '도서관 근로장학생',
+                        icon: '🤓',
+                        hair: '#451a03', top: '#0284c7', bottom: '#334155', acc: 'glasses',
+                        dialog: '도서관 데스크에서 학습용 스마트 태블릿과 전공 마스터북을 대여·구비하시면 전공 지식이 영구적으로 크게 상승해요!'
+                    }
+                ]
+            },
+            {
+                id: 'student_union',
+                name: '학생회관',
+                subName: '입학팀 · 취창업팀 · 학생팀 · 총동아리연합회',
+                roomTheme: 'cafeteria',
+                x: 2060,
+                y: 1620,
+                radius: 145,
+                icon: '🍱',
+                color: '#f97316',
+                npcs: [
+                    {
+                        name: '커피숍 바리스타',
+                        role: '아이스아메리카노',
+                        icon: '👩‍🍳',
+                        hair: '#1e293b', top: '#f97316', bottom: '#ffffff', acc: 'beret',
+                        dialog: '학생회관 2층 커피숍 내부입니다! 오늘은 미숫가루가 맛있어요!'
+                    },
+                    {
+                        name: '강태풍 동아리회장',
+                        role: '총동아리연합회 대표',
+                        icon: '🎸',
+                        hair: '#7c2d12', top: '#8b5cf6', bottom: '#0f172a', acc: 'scarf',
+                        dialog: '학생회관 동아리방 무대는 언제나 열정으로 가득하죠! 밴드부, AI·게임개발 학회, 사진동아리 중 마음에 드는 중앙동아리에 가입해 보세요!'
+                    }
+                ]
+            },
+            {
+                id: 'bio_eng_air',
+                name: '공학관 · 의생명관 · 항공관',
+                subName: '의생명2관 · 영진건설기술교육원 · 풋살장',
+                roomTheme: 'lab',
+                x: 1660,
+                y: 2220,
+                radius: 175,
+                icon: '🔬',
+                color: '#8b5cf6',
+                npcs: [
+                    {
+                        name: '장영실 석좌교수',
+                        role: '공학관 · 의생명관 융합연구소장',
+                        icon: '🥽',
+                        hair: '#94a3b8', top: '#f8fafc', bottom: '#334155', acc: 'coat',
+                        dialog: '첨단 융합 실험실 내부에 온 걸 환영하네! 실험 장비 앞에서 캡스톤 실습에 참여하면 연구 장려금(+1,500P)과 높은 전공 지식을 얻을 수 있다네.'
+                    },
+                    {
+                        name: '항공학부 기장 교수',
+                        role: '항공관 비행시뮬레이션 실습장',
+                        icon: '✈️',
+                        hair: '#0f172a', top: '#1e3a8a', bottom: '#0f172a', acc: 'cap',
+                        dialog: '항공관 시뮬레이션 룸에서는 최신 비행 조종 시뮬레이터와 항공 운항 실습을 체험할 수 있습니다!'
+                    }
+                ]
+            },
+            {
+                id: 'south_stadium',
+                name: '남쪽 대운동장',
+                subName: '트랙 대운동장',
+                x: 2140,
+                y: 2980,
+                radius: 210,
+                icon: '🏟️',
+                color: '#ef4444',
+                npcs: [
+                    {
+                        name: '총학생회장',
+                        role: '신라 대동제 축제 총괄기획단',
+                        icon: '🎉',
+                        hair: '#4c1d95', top: '#e11d48', bottom: '#0f172a', acc: 'scarf',
+                        dialog: '남쪽 대운동장 야외 트랙에 오신 걸 환영해요! 이곳에서는 런닝 및 축구 등 체력단련을 할 수 있어요!'
+                    }
+                ]
+            },
+            {
+                id: 'industry_academic',
+                name: '산학협력실습동',
+                subName: '항공기 엔진 정비 격납고 · 드론보안 실습센터',
+                roomTheme: 'lab',
+                x: 1900,
+                y: 2750,
+                radius: 100,
+                icon: '✈️',
+                color: '#3b82f6',
+                npcs: [
+                    {
+                        name: 'I-URP',
+                        role: '반려동물·AI로봇지도',
+                        icon: '👨‍✈️',
+                        hair: '#0f172a', top: '#1e3a8a', bottom: '#0f172a', acc: 'cap',
+                        dialog: '산학협력실습동에 오신 것을 환영합니다! 반려동물특성화산업 특화단지를 경험해보세요'
+                    },
+                    {
+                        name: '드론보안 조교',
+                        role: '산업보안 및 스마트 드론 관제 담당',
+                        icon: '🛸',
+                        hair: '#334155', top: '#0284c7', bottom: '#1e293b', acc: 'none',
+                        dialog: '이곳에서는 첨단 드론 보안 관제와 항공정비 캡스톤 프로젝트가 진행됩니다!'
+                    }
+                ]
+            }
+        ];
+
+        const MAIN_QUESTS = [
+            {
+                step: 0,
+                title: '1교시: 신입생 기숙사 오리엔테이션',
+                desc: '동쪽 고지대 [글로벌타운 · B동 · 제3기숙사] 실내로 들어가 사감 선생님과 대화하세요.',
+                targetPoi: 'globaltown',
+                type: 'visit',
+                goal: 1,
+                rewardGold: 1500,
+                rewardExp: 100
+            },
+            {
+                step: 1,
+                title: '2교시: 인문관 교양 세미나 & 차차커피코',
+                desc: '북쪽 중앙 [인문관] 실내로 들어가 정약용 교수님의 교양 상식 퀴즈를 1회 맞혀보세요.',
+                targetPoi: 'humanities',
+                type: 'quiz',
+                goal: 1,
+                rewardGold: 2000,
+                rewardExp: 160
+            },
+            {
+                step: 2,
+                title: '점심시간: 학생회관 학식 & 동아리 가입',
+                desc: '중앙 로터리 동쪽 [학생회관] 실내 식당에서 특선 학식을 먹거나 중앙동아리에 가입하세요.',
+                targetPoi: 'student_union',
+                type: 'commerce_act',
+                goal: 1,
+                rewardGold: 2500,
+                rewardExp: 220
+            },
+            {
+                step: 3,
+                title: '3교시: 공학·의생명·항공 융합 실습',
+                desc: '남쪽 캠퍼스 [공학관 · 의생명관 · 항공관] 실내 실험실에서 실습에 2회 참여하세요.',
+                targetPoi: 'bio_eng_air',
+                type: 'lab_work',
+                goal: 2,
+                rewardGold: 3500,
+                rewardExp: 320
+            },
+            {
+                step: 4,
+                title: '방과후: 남쪽 대운동장 대동제 개막!',
+                desc: '최남단 [남쪽 대운동장]으로 이동해 축제를 개최하세요!',
+                targetPoi: 'south_stadium',
+                type: 'festival',
+                goal: 1,
+                rewardGold: 5000,
+                rewardExp: 600
+            },
+            {
+                step: 5,
+                title: '자유 학기: 자랑스러운 신라대 인재',
+                desc: '모든 필수 일정을 완수했습니다! 캠퍼스 건물 실내외를 자유롭게 탐험하세요.',
+                targetPoi: 'hq_gym',
+                type: 'complete',
+                goal: 1,
+                rewardGold: 0,
+                rewardExp: 0
+            }
+        ];
+
+        const QUIZ_BANK = [
+            {
+                q: '신라대학교 정문 바로 우측(동쪽)에 자리 잡은 아름다운 자연 생태연못의 이름은?',
+                options: ['덕포지', '백양지', '사상호', '화랑호'],
+                answer: 0
+            },
+            {
+                q: '신라대 인문관 1층에 위치해 학생들의 공강 시간 커피 충전을 책임지는 카페 이름은?',
+                options: ['차차커피코', '별다방', '화랑다방', '사상커피'],
+                answer: 0
+            },
+            {
+                q: '중앙 운동장 북서쪽에 위치하며 GS25 편의점과 24시 무인복사실이 있는 건물은?',
+                options: ['국제교육관', '체육관', '제3기숙사', '항공정비실습동'],
+                answer: 0
+            },
+            {
+                q: '남쪽 캠퍼스 대운동장 바로 서쪽에 나란히 위치한 2개의 실습동 이름은?',
+                options: ['산업보안실습동 & 항공정비실습동', '음대실습동 & 미대실습동', '법학관 & 행정관', '박물관 & 도서관'],
+                answer: 0
+            }
+        ];
+
+        // =========================================================================
+        // 2. 플레이어 상태 & 실내(Indoor) / 야외(Outdoor) 전환 상태 관리
+        // =========================================================================
+        let gameScene = 'outdoor'; // 'outdoor' | 'indoor'
+        let activeIndoorPoi = null;
+
+        const ROOM_W = 840;
+        const ROOM_H = 620;
+        let indoorNpcs = [];
+        let indoorFurnitures = [];
+        let savedOutdoorPos = { x: 1180, y: 1520 };
+
+        const player = {
+            x: 1180,
+            y: 1520,
+            radius: 16,
+            speed: 265,
+            sprintTimer: 0,
+            dirX: 0,
+            dirY: -1,
+            facing: 'up',
+            walkCycle: 0,
+            isMoving: false,
+            level: 1,
+            exp: 0,
+            maxExp: 100,
+            hp: 100,
+            maxHp: 100,
+            mp: 100,
+            maxMp: 100,
+            intellect: 12,
+            artSense: 10,
+            charm: 12,
+            fitness: 10,
+            gold: 5000,
+            coffees: 3,
+            majorName: '자율전공학부',
+            clubName: '미가입',
+            gearName: '기본 다이어리 & 볼펜',
+            title: '새내기 대학생',
+            labReportCount: 0,
+            photoCount: 0,
+            greetCount: 0,
+            greetAnimTimer: 0,
+            questStep: 0,
+            questProgress: 0,
+            subQuestActive: false,
+            subQuestProgress: 0
+        };
+
+        const camera = {
+            x: player.x - window.innerWidth / 2,
+            y: player.y - window.innerHeight / 2
+        };
+
+        const keys = {};
+        const actionCooldowns = { 1: 0, 2: 0, 3: 0, 4: 0 };
+        const actionMaxCooldowns = { 1: 5.0, 2: 3.0, 3: 4.0, 4: 4.5 };
+
+        let campusNpcs = [];
+        let particles = [];
+        let ambientLeaves = [];
+        let floatingTexts = [];
+        let trees = [];
+        let mountains = [];
+        let campusProps = [];
+        let activeGuideTarget = null;
+        let currentClosestPoi = null;
+        let currentClosestNpc = null;
+        let currentClosestIndoorNpc = null;
+        let nearIndoorExit = false;
+        let selectedNpcIndexInModal = 0;
+
+        // =========================================================================
+        // 3. 건물 실내 도트 맵(Interior Room) 생성 및 입장/퇴장 시스템
+        // =========================================================================
+        function enterIndoorMap(poi) {
+            if (!poi) return;
+            // 남쪽 대운동장은 실내 건물이 아니므로 바로 축제/운동장 액션 실행
+            if (poi.id === 'south_stadium') {
+                celebrateCampusFestival();
+                return;
+            }
+            savedOutdoorPos.x = player.x;
+            savedOutdoorPos.y = player.y;
+
+            gameScene = 'indoor';
+            activeIndoorPoi = poi;
+
+            player.x = ROOM_W / 2;
+            player.y = ROOM_H - 95;
+            player.facing = 'up';
+            player.isMoving = false;
+            keys['w'] = keys['s'] = keys['a'] = keys['d'] = false;
+
+            const currentQ = MAIN_QUESTS[player.questStep];
+            if (currentQ && currentQ.type === 'visit' && currentQ.targetPoi === poi.id) {
+                player.questProgress = 1;
+                checkMainQuestCompletion();
+            }
+
+            buildIndoorRoomLayout(poi);
+
+            document.getElementById('exitIndoorBtn').classList.remove('hidden');
+            document.getElementById('headerBadgeIcon').textContent = poi.icon;
+            document.getElementById('minimapTitle').textContent = '🏠 실내 구조도';
+            createBurstParticles(player.x, player.y, '#fde047', 25, 160);
+            showToast(`🚪 [${poi.name}] 실내로 입장했습니다! NPC를 터치하거나 Space/F키로 대화하세요.`);
+            updateUI();
+        }
+
+        function exitIndoorMap() {
+            if (gameScene !== 'indoor') return;
+            closePoiModal();
+            const prevPoiName = activeIndoorPoi ? activeIndoorPoi.name : '건물';
+            gameScene = 'outdoor';
+            activeIndoorPoi = null;
+
+            player.x = savedOutdoorPos.x;
+            player.y = savedOutdoorPos.y + 20;
+            player.facing = 'down';
+            keys['w'] = keys['s'] = keys['a'] = keys['d'] = false;
+            resolveTreeCollisions(player, player.radius);
+
+            document.getElementById('exitIndoorBtn').classList.add('hidden');
+            document.getElementById('headerBadgeIcon').textContent = '🎓';
+            document.getElementById('minimapTitle').textContent = '🧭 위성 캠퍼스 레이더';
+            createBurstParticles(player.x, player.y, '#38bdf8', 25, 160);
+            showToast(`🌿 [${prevPoiName}] 밖 야외 캠퍼스로 나왔습니다.`);
+            updateUI();
+        }
+
+        function buildIndoorRoomLayout(poi) {
+            indoorFurnitures = [];
+            indoorNpcs = [];
+            const theme = poi.roomTheme || 'classroom';
+
+            if (theme === 'library') {
+                indoorFurnitures.push({ type: 'counter', x: 310, y: 120, w: 220, h: 44, label: '📚 학술정보 대출 데스크', color: '#78350f' });
+                indoorFurnitures.push({ type: 'bookshelf', x: 90, y: 170, w: 140, h: 42, label: '전공서적 서가 A' });
+                indoorFurnitures.push({ type: 'bookshelf', x: 90, y: 270, w: 140, h: 42, label: '인문교양 서가 B' });
+                indoorFurnitures.push({ type: 'bookshelf', x: 610, y: 170, w: 140, h: 42, label: '학술논문 서가 C' });
+                indoorFurnitures.push({ type: 'bookshelf', x: 610, y: 270, w: 140, h: 42, label: '외국학술지 서가 D' });
+                indoorFurnitures.push({ type: 'table', x: 250, y: 360, w: 130, h: 65, label: '열람실 테이블 1' });
+                indoorFurnitures.push({ type: 'table', x: 460, y: 360, w: 130, h: 65, label: '열람실 테이블 2' });
+            } else if (theme === 'cafe_lecture' || theme === 'store') {
+                indoorFurnitures.push({
+                    type: 'counter', x: 80, y: 130, w: 230, h: 50,
+                    label: poi.id === 'humanities' ? '☕ 차차커피코 카운터' : '🏪 GS25 편의점 카운터',
+                    color: poi.id === 'humanities' ? '#ea580c' : '#0284c7'
+                });
+                indoorFurnitures.push({
+                    type: 'counter', x: 510, y: 130, w: 240, h: 46,
+                    label: poi.id === 'humanities' ? '📖 인문학 세미나 교단' : '🖨️ 24시 무인복사실 제본기',
+                    color: '#475569'
+                });
+                indoorFurnitures.push({ type: 'table', x: 110, y: 310, w: 110, h: 60, label: '카페 라운지석' });
+                indoorFurnitures.push({ type: 'table', x: 490, y: 280, w: 120, h: 50, label: '세미나 책상 1' });
+                indoorFurnitures.push({ type: 'table', x: 630, y: 280, w: 120, h: 50, label: '세미나 책상 2' });
+                indoorFurnitures.push({ type: 'table', x: 490, y: 380, w: 120, h: 50, label: '세미나 책상 3' });
+                indoorFurnitures.push({ type: 'table', x: 630, y: 380, w: 120, h: 50, label: '세미나 책상 4' });
+            } else if (theme === 'cafeteria') {
+                indoorFurnitures.push({ type: 'counter', x: 90, y: 125, w: 280, h: 48, label: '🍱 커피숍 (오늘의 커피)', color: '#ea580c' });
+                indoorFurnitures.push({ type: 'stage', x: 490, y: 115, w: 260, h: 70, label: '🎸 중앙동아리 합주 무대', color: '#4c1d95' });
+                indoorFurnitures.push({ type: 'table', x: 110, y: 270, w: 120, h: 56, label: '커피숍 테이블 1' });
+                indoorFurnitures.push({ type: 'table', x: 260, y: 270, w: 120, h: 56, label: '커피숍 테이블 2' });
+                indoorFurnitures.push({ type: 'table', x: 110, y: 380, w: 120, h: 56, label: '커피숍 테이블 3' });
+                indoorFurnitures.push({ type: 'table', x: 260, y: 380, w: 120, h: 56, label: '커피숍 테이블 4' });
+            } else if (theme === 'dorm') {
+                indoorFurnitures.push({ type: 'counter', x: 310, y: 120, w: 220, h: 46, label: '🏢 생활관 사감실 안내데스크', color: '#0369a1' });
+                indoorFurnitures.push({ type: 'bed', x: 90, y: 170, w: 110, h: 75, label: '🛌 기숙사 침대 A' });
+                indoorFurnitures.push({ type: 'bed', x: 90, y: 290, w: 110, h: 75, label: '🛌 기숙사 침대 B' });
+                indoorFurnitures.push({ type: 'table', x: 560, y: 240, w: 160, h: 80, label: '🌍 글로벌 어학 교류 라운지석' });
+            } else if (theme === 'lab') {
+                indoorFurnitures.push({ type: 'lab_bench', x: 100, y: 130, w: 250, h: 52, label: '🔬 바이오·의생명 융합 실험대' });
+                indoorFurnitures.push({ type: 'lab_bench', x: 490, y: 130, w: 250, h: 52, label: '✈️ 항공 운항 시뮬레이터 장비' });
+                indoorFurnitures.push({ type: 'table', x: 140, y: 310, w: 150, h: 64, label: '캡스톤 코딩 워크스테이션 1' });
+                indoorFurnitures.push({ type: 'table', x: 540, y: 310, w: 150, h: 64, label: '캡스톤 코딩 워크스테이션 2' });
+            } else {
+                indoorFurnitures.push({ type: 'counter', x: 280, y: 115, w: 280, h: 45, label: `🏫 ${poi.name.split(' ')[0]} 메인 데스크/교단`, color: '#1e3a8a' });
+                indoorFurnitures.push({ type: 'table', x: 140, y: 260, w: 130, h: 55, label: '강의/전시 테이블 1' });
+                indoorFurnitures.push({ type: 'table', x: 570, y: 260, w: 130, h: 55, label: '강의/전시 테이블 2' });
+                indoorFurnitures.push({ type: 'table', x: 140, y: 370, w: 130, h: 55, label: '강의/전시 테이블 3' });
+                indoorFurnitures.push({ type: 'table', x: 570, y: 370, w: 130, h: 55, label: '강의/전시 테이블 4' });
+            }
+
+            const npcPositions = [
+                { x: 240, y: 215 },
+                { x: 600, y: 215 },
+                { x: 420, y: 240 }
+            ];
+
+            poi.npcs.forEach((npcData, idx) => {
+                const pos = npcPositions[idx % npcPositions.length];
+                indoorNpcs.push({
+                    idx: idx,
+                    name: npcData.name,
+                    role: npcData.role,
+                    icon: npcData.icon,
+                    dialog: npcData.dialog,
+                    hair: npcData.hair || '#1e293b',
+                    top: npcData.top || '#2563eb',
+                    bottom: npcData.bottom || '#0f172a',
+                    acc: npcData.acc || 'none',
+                    x: pos.x,
+                    y: pos.y,
+                    homeX: pos.x,
+                    homeY: pos.y,
+                    radius: 16,
+                    facing: 'down',
+                    walkCycle: 0,
+                    isMoving: false,
+                    wanderTimer: 2 + Math.random() * 2,
+                    wanderAngle: 0,
+                    currentBubble: npcData.dialog.slice(0, 26) + '...'
+                });
+            });
+
+            indoorNpcs.push({
+                idx: 0,
+                name: '수강 중인 신라대 학우',
+                role: '열공 모범생',
+                icon: '🧑‍🎓',
+                dialog: `${poi.name} 실내 분위기가 정말 쾌적하네요! 교수님이나 담당자분께 말을 걸어 활동해 보세요!`,
+                hair: '#451a03',
+                top: '#10b981',
+                bottom: '#1e293b',
+                acc: 'none',
+                x: 420,
+                y: 340,
+                homeX: 420,
+                homeY: 340,
+                radius: 16,
+                facing: 'up',
+                walkCycle: 0,
+                isMoving: false,
+                wanderTimer: 3,
+                wanderAngle: 0,
+                currentBubble: '열심히 학점 관리 중!'
+            });
+        }
+
+        function resolveIndoorCollisions(entity, r) {
+            entity.x = Math.max(68, Math.min(ROOM_W - 68, entity.x));
+            entity.y = Math.max(105, Math.min(ROOM_H - 52, entity.y));
+
+            for (const f of indoorFurnitures) {
+                const closestX = Math.max(f.x, Math.min(entity.x, f.x + f.w));
+                const closestY = Math.max(f.y, Math.min(entity.y, f.y + f.h));
+                const dx = entity.x - closestX;
+                const dy = entity.y - closestY;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist < r) {
+                    if (dist === 0) {
+                        entity.y += r;
+                    } else {
+                        const overlap = r - dist;
+                        entity.x += (dx / dist) * overlap;
+                        entity.y += (dy / dist) * overlap;
+                    }
+                }
+            }
+        }
+
+        function generateDQTreeSprites() {
+            const palettes = {
+                oak: {
+                    outline: '#0b2210', shadow: '#153d1b', mid: '#23632a', light: '#3f913b', highlight: '#7ed15e',
+                    trunkDark: '#3b200e', trunkMid: '#5e3519', trunkLight: '#824d28'
+                },
+                cherry: {
+                    outline: '#4a1228', shadow: '#8c244e', mid: '#d45083', light: '#f78bb2', highlight: '#ffe0ec',
+                    trunkDark: '#361f1c', trunkMid: '#593631', trunkLight: '#784c46'
+                },
+                ginkgo: {
+                    outline: '#422006', shadow: '#854d0e', mid: '#ca8a04', light: '#facc15', highlight: '#fef08a',
+                    trunkDark: '#3b2313', trunkMid: '#5c3a21', trunkLight: '#7c5233'
+                },
+                pine: {
+                    outline: '#091e1a', shadow: '#113830', mid: '#1b574b', light: '#2d7a6b', highlight: '#57ab9a',
+                    trunkDark: '#2e190e', trunkMid: '#4d2b18', trunkLight: '#6b3e26'
+                }
+            };
+
+            Object.keys(palettes).forEach(type => {
+                const pal = palettes[type];
+                const off = document.createElement('canvas');
+                off.width = 96;
+                off.height = 112;
+                const c = off.getContext('2d');
+                const p = 2;
+
+                function drawPixelCluster(cx, cy, r, color) {
+                    c.fillStyle = color;
+                    for (let py = -r; py <= r; py += p) {
+                        for (let px = -r; px <= r; px += p) {
+                            const dist = Math.hypot(px, py);
+                            const noise = ((Math.sin(px * 12.3 + cy) + Math.cos(py * 45.6 + cx)) * 0.12) * r;
+                            if (dist <= r + noise) {
+                                c.fillRect(Math.floor((cx + px) / p) * p, Math.floor((cy + py) / p) * p, p, p);
+                            }
+                        }
+                    }
+                }
+
+                c.fillStyle = 'rgba(8, 18, 8, 0.38)';
+                c.beginPath();
+                c.ellipse(48, 96, 30, 11, 0, 0, Math.PI * 2);
+                c.fill();
+
+                c.fillStyle = pal.outline;
+                c.fillRect(38, 60, 20, 36);
+                c.fillRect(32, 88, 32, 8);
+
+                c.fillStyle = pal.trunkDark;
+                c.fillRect(40, 60, 16, 34);
+                c.fillRect(34, 90, 28, 4);
+
+                c.fillStyle = pal.trunkMid;
+                c.fillRect(40, 60, 11, 34);
+                c.fillRect(36, 90, 18, 4);
+
+                c.fillStyle = pal.trunkLight;
+                c.fillRect(42, 64, 4, 26);
+                c.fillRect(38, 90, 6, 2);
+
+                if (type === 'pine') {
+                    [{y: 66, w: 34}, {y: 48, w: 28}, {y: 32, w: 20}, {y: 18, w: 12}].forEach(t => {
+                        drawPixelCluster(48, t.y, t.w * 0.65, pal.outline);
+                        drawPixelCluster(48, t.y - 2, t.w * 0.6, pal.shadow);
+                        drawPixelCluster(46, t.y - 4, t.w * 0.5, pal.mid);
+                        drawPixelCluster(44, t.y - 6, t.w * 0.35, pal.light);
+                        drawPixelCluster(42, t.y - 8, t.w * 0.18, pal.highlight);
+                    });
+                } else {
+                    const puffs = [
+                        {x: 28, y: 54, r: 18}, {x: 68, y: 54, r: 18}, {x: 48, y: 60, r: 20},
+                        {x: 32, y: 36, r: 20}, {x: 64, y: 36, r: 20}, {x: 48, y: 26, r: 22}
+                    ];
+                    puffs.forEach(pf => drawPixelCluster(pf.x, pf.y, pf.r + 2, pal.outline));
+                    puffs.forEach(pf => drawPixelCluster(pf.x, pf.y, pf.r, pal.shadow));
+                    puffs.forEach(pf => drawPixelCluster(pf.x - 1, pf.y - 3, pf.r * 0.85, pal.mid));
+                    puffs.forEach(pf => { if (pf.y <= 54) drawPixelCluster(pf.x - 3, pf.y - 5, pf.r * 0.62, pal.light); });
+                    drawPixelCluster(44, 18, 10, pal.highlight);
+                    drawPixelCluster(28, 28, 8, pal.highlight);
+                    drawPixelCluster(58, 28, 7, pal.highlight);
+                }
+
+                treeSprites[type] = off;
+            });
+        }
+
+        function distToSegment(px, py, x1, y1, x2, y2) {
+            const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+            if (l2 === 0) return Math.hypot(px - x1, py - y1);
+            let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+        }
+
+        function isPointOnRoad(px, py, margin = 52) {
+            for (const path of ROAD_PATHS) {
+                for (let i = 0; i < path.length - 1; i++) {
+                    if (distToSegment(px, py, path[i].x, path[i].y, path[i + 1].x, path[i + 1].y) < margin) {
+                        return true;
+                    }
+                }
+            }
+            if (Math.hypot(px - 1680, py - 1580) < 95) return true;
+            if (Math.hypot(px - 960, py - 780) < 75) return true;
+            return false;
+        }
+
+        function buildDetailedPixelMap() {
+            const cols = WORLD_W / TILE_SIZE;
+            const rows = WORLD_H / TILE_SIZE;
+
+            function tileHash(tx, ty) {
+                let n = Math.sin(tx * 12.9898 + ty * 78.233) * 43758.5453;
+                return n - Math.floor(n);
+            }
+
+            for (let ty = 0; ty < rows; ty++) {
+                for (let tx = 0; tx < cols; tx++) {
+                    const wx = tx * TILE_SIZE;
+                    const wy = ty * TILE_SIZE;
+                    const h = tileHash(tx, ty);
+
+                    const isDeepForest = (wx < 1150 && wy > 1720) || wy < 250 || wx > 2350;
+                    let baseColor = isDeepForest ? '#355e24' : '#467a32';
+                    if (!isDeepForest) {
+                        if (h < 0.25) baseColor = '#4e8538';
+                        else if (h < 0.5) baseColor = '#41732d';
+                        else if (h < 0.75) baseColor = '#538c3c';
+                    } else if (h < 0.4) {
+                        baseColor = '#2d521e';
+                    }
+
+                    bgCtx.fillStyle = baseColor;
+                    bgCtx.fillRect(wx, wy, TILE_SIZE, TILE_SIZE);
+
+                    if (wx < 1200 && wy > 1750 && (Math.floor(wy / 32) % 2 === 0) && h > 0.4) {
+                        bgCtx.fillStyle = 'rgba(20, 40, 15, 0.22)';
+                        bgCtx.fillRect(wx, wy, TILE_SIZE, 4);
+                    }
+
+                    if (h > 0.3) {
+                        bgCtx.fillStyle = '#254718';
+                        bgCtx.fillRect(wx + 3, wy + 7, 2, 4);
+                        bgCtx.fillRect(wx + 7, wy + 7, 2, 4);
+                        bgCtx.fillStyle = '#74b553';
+                        bgCtx.fillRect(wx + 3, wy + 5, 2, 3);
+                        bgCtx.fillRect(wx + 7, wy + 5, 2, 3);
+                    }
+
+                    if (h > 0.90 && !isDeepForest) {
+                        bgCtx.fillStyle = h > 0.96 ? '#fde047' : (h > 0.93 ? '#f472b6' : '#ffffff');
+                        bgCtx.fillRect(wx + 10, wy + 8, 3, 3);
+                    }
+                }
+            }
+
+            bgCtx.lineCap = 'round';
+            bgCtx.lineJoin = 'round';
+
+            ROAD_PATHS.forEach(path => {
+                bgCtx.strokeStyle = 'rgba(15, 30, 10, 0.45)';
+                bgCtx.lineWidth = 66;
+                bgCtx.beginPath();
+                path.forEach((pt, idx) => idx === 0 ? bgCtx.moveTo(pt.x, pt.y) : bgCtx.lineTo(pt.x, pt.y));
+                bgCtx.stroke();
+
+                bgCtx.strokeStyle = '#cbd5e1';
+                bgCtx.lineWidth = 58;
+                bgCtx.beginPath();
+                path.forEach((pt, idx) => idx === 0 ? bgCtx.moveTo(pt.x, pt.y) : bgCtx.lineTo(pt.x, pt.y));
+                bgCtx.stroke();
+
+                bgCtx.strokeStyle = '#d9c3a9';
+                bgCtx.lineWidth = 50;
+                bgCtx.beginPath();
+                path.forEach((pt, idx) => idx === 0 ? bgCtx.moveTo(pt.x, pt.y) : bgCtx.lineTo(pt.x, pt.y));
+                bgCtx.stroke();
+
+                bgCtx.strokeStyle = '#334155';
+                bgCtx.lineWidth = 32;
+                bgCtx.beginPath();
+                path.forEach((pt, idx) => idx === 0 ? bgCtx.moveTo(pt.x, pt.y) : bgCtx.lineTo(pt.x, pt.y));
+                bgCtx.stroke();
+
+                bgCtx.save();
+                bgCtx.strokeStyle = '#fde047';
+                bgCtx.lineWidth = 2;
+                bgCtx.setLineDash([12, 14]);
+                bgCtx.beginPath();
+                path.forEach((pt, idx) => idx === 0 ? bgCtx.moveTo(pt.x, pt.y) : bgCtx.lineTo(pt.x, pt.y));
+                bgCtx.stroke();
+                bgCtx.restore();
+            });
+
+            bgCtx.fillStyle = '#334155';
+            bgCtx.beginPath();
+            bgCtx.arc(1680, 1580, 72, 0, Math.PI * 2);
+            bgCtx.fill();
+            bgCtx.strokeStyle = '#cbd5e1';
+            bgCtx.lineWidth = 6;
+            bgCtx.stroke();
+            bgCtx.fillStyle = '#65a30d';
+            bgCtx.beginPath();
+            bgCtx.arc(1680, 1580, 38, 0, Math.PI * 2);
+            bgCtx.fill();
+
+            bgCtx.fillStyle = '#334155';
+            bgCtx.beginPath();
+            bgCtx.arc(960, 780, 44, 0, Math.PI * 2);
+            bgCtx.fill();
+            bgCtx.fillStyle = '#65a30d';
+            bgCtx.beginPath();
+            bgCtx.arc(960, 780, 18, 0, Math.PI * 2);
+            bgCtx.fill();
+
+            POIS.forEach(poi => {
+                const { x, y, radius, id } = poi;
+                if (id === 'arena' || id === 'south_stadium' || id === 'main_gate') return;
+
+                bgCtx.save();
+                bgCtx.beginPath();
+                bgCtx.arc(x, y + 10, radius * 0.82, 0, Math.PI * 2);
+                bgCtx.fillStyle = '#e5dccb';
+                bgCtx.fill();
+                bgCtx.lineWidth = 4;
+                bgCtx.strokeStyle = '#78716c';
+                bgCtx.stroke();
+
+                bgCtx.clip();
+                for (let gy = y - radius; gy <= y + radius; gy += 16) {
+                    for (let gx = x - radius; gx <= x + radius; gx += 16) {
+                        bgCtx.fillStyle = ((gx + gy) % 32 === 0) ? '#dfd3be' : '#ece4d5';
+                        bgCtx.fillRect(gx, gy, 15, 15);
+                    }
+                }
+                bgCtx.restore();
+            });
+
+            const parkingLots = [
+                {name: 'P 주차장1', x: 1220, y: 1530},
+                {name: 'P 주차장2', x: 350, y: 1180},
+                {name: 'P 주차장3', x: 1540, y: 780},
+                {name: 'P 주차장4', x: 1080, y: 420},
+                {name: 'P 주차장5', x: 1260, y: 690},
+                {name: 'P 주차장6', x: 960, y: 1530}
+            ];
+            parkingLots.forEach(pk => {
+                bgCtx.fillStyle = '#475569';
+                bgCtx.fillRect(pk.x - 32, pk.y - 14, 64, 28);
+                bgCtx.strokeStyle = '#e2e8f0';
+                bgCtx.lineWidth = 1.5;
+                bgCtx.strokeRect(pk.x - 32, pk.y - 14, 64, 28);
+                bgCtx.fillStyle = '#38bdf8';
+                bgCtx.font = 'bold 9px "Noto Sans KR", sans-serif';
+                bgCtx.textAlign = 'center';
+                bgCtx.fillText(pk.name, pk.x, pk.y + 10);
+            });
+        }
+
+        function initEnvironment() {
+            trees = [];
+            mountains = [];
+            campusProps = [];
+            ambientLeaves = [];
+
+            const mountainClusters = [
+                {cx: 220, cy: 260, count: 9, r: 220},
+                {cx: 820, cy: 180, count: 8, r: 200},
+                {cx: 2150, cy: 220, count: 10, r: 240},
+                {cx: 2420, cy: 1150, count: 12, r: 260},
+                {cx: 450, cy: 2150, count: 14, r: 340},
+                {cx: 850, cy: 2650, count: 14, r: 340},
+                {cx: 420, cy: 3050, count: 12, r: 300}
+            ];
+
+            mountainClusters.forEach(cluster => {
+                for (let i = 0; i < cluster.count; i++) {
+                    const ang = (i / cluster.count) * Math.PI * 2 + (Math.random() * 0.4);
+                    const dist = Math.random() * cluster.r;
+                    mountains.push({
+                        x: cluster.cx + Math.cos(ang) * dist,
+                        y: cluster.cy + Math.sin(ang) * dist,
+                        size: 72 + Math.random() * 48
+                    });
+                }
+            });
+
+            for (let i = 0; i < 480; i++) {
+                const tx = 80 + Math.random() * (WORLD_W - 160);
+                const ty = 80 + Math.random() * (WORLD_H - 160);
+
+                let nearPoi = false;
+                for (const p of POIS) {
+                    if (Math.hypot(tx - p.x, ty - p.y) < p.radius + 48) {
+                        nearPoi = true;
+                        break;
+                    }
+                }
+                if (nearPoi) continue;
+                if (isPointOnRoad(tx, ty, 54)) continue;
+                if (Math.hypot(tx - 650, ty - 1440) < 120) continue;
+                if (Math.hypot(tx - 920, ty - 1350) < 110) continue;
+
+                const roll = Math.random();
+                let treeType = 'oak';
+                if (roll > 0.84) treeType = 'cherry';
+                else if (roll > 0.68) treeType = 'ginkgo';
+                else if (roll > 0.48) treeType = 'pine';
+
+                const scale = 0.85 + Math.random() * 0.35;
+                trees.push({
+                    x: tx,
+                    y: ty,
+                    scale: scale,
+                    colRadius: 18 * scale,
+                    type: treeType
+                });
+            }
+
+            ROAD_PATHS.forEach(path => {
+                for (let i = 0; i < path.length - 1; i++) {
+                    const p1 = path[i];
+                    const p2 = path[i + 1];
+                    const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                    const steps = Math.floor(segLen / 180);
+                    for (let s = 1; s < steps; s++) {
+                        const ratio = s / steps;
+                        const lx = p1.x + (p2.x - p1.x) * ratio;
+                        const ly = p1.y + (p2.y - p1.y) * ratio;
+                        campusProps.push({ type: 'lamp', x: lx - 36, y: ly - 10 });
+                        if (s % 2 === 0) {
+                            campusProps.push({ type: 'bench', x: lx + 38, y: ly + 8 });
+                        } else {
+                            campusProps.push({ type: 'flowerbed', x: lx + 38, y: ly + 10 });
+                        }
+                    }
+                }
+            });
+
+            for (let i = 0; i < 55; i++) {
+                ambientLeaves.push({
+                    x: Math.random() * WORLD_W,
+                    y: Math.random() * WORLD_H,
+                    vx: 18 + Math.random() * 22,
+                    vy: 12 + Math.random() * 18,
+                    size: 3 + Math.random() * 3,
+                    color: Math.random() > 0.45 ? '#fbcfe8' : '#fde047',
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function resolveTreeCollisions(entity, radius) {
+            for (let i = 0; i < trees.length; i++) {
+                const t = trees[i];
+                const dx = entity.x - t.x;
+                const dy = entity.y - t.y;
+                const minDist = radius + t.colRadius;
+
+                if (Math.abs(dx) < minDist && Math.abs(dy) < minDist) {
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < minDist) {
+                        if (dist === 0) {
+                            entity.x += minDist;
+                        } else {
+                            const overlap = minDist - dist;
+                            entity.x += (dx / dist) * overlap;
+                            entity.y += (dy / dist) * overlap;
+                        }
+                    }
+                }
+            }
+        }
+
+        const CAMPUS_NPC_TEMPLATES = [
+            { name: '김민지 (예술관 디자인과)', icon: '👩‍🎨', hair: '#4c1d95', top: '#ec4899', bottom: '#1e293b', acc: 'beret', cx: 450, cy: 1160, speech: ['예술관 실내 갤러리에도 꼭 들어가 보세요!', '박물관 앞 산책로가 참 예쁘죠?', '과제 마감 전엔 차차커피코 아아 한 잔!'] },
+            { name: '이준호 (공학관 컴퓨터공학)', icon: '🧑‍💻', hair: '#0f172a', top: '#2563eb', bottom: '#334155', acc: 'glasses', cx: 1520, cy: 2050, speech: ['공학관 실내 실험실에서 캡스톤 실습 중입니다!', '남쪽 캠퍼스 풋살장 잔디가 진짜 좋아요!', '이번 학기 A+ 받고 싶네요!'] },
+            { name: '박서연 (항공관 항공서비스)', icon: '💁‍♀️', hair: '#451a03', top: '#0ea5e9', bottom: '#0f172a', acc: 'scarf', cx: 1640, cy: 2240, speech: ['항공관 실내에 비행 시뮬레이터가 있어요!', '글로벌타운에서 내려오는 길이 상쾌해요.', '학생회관 입학팀 선생님들 너무 멋있대요!'] },
+            { name: '최현우 (체육학부 3학년)', icon: '🏃', hair: '#111827', top: '#10b981', bottom: '#f8fafc', acc: 'band', cx: 920, cy: 1120, speech: ['중앙 운동장 모래트랙 뛰고 테니스장 가는 길입니다!', '북쪽 실내체육관에서도 농구 수업이 열려요!', '체력이 곧 학점입니다!'] },
+            { name: '사라 (국제교육관 교환학생)', icon: '👱‍♀️', hair: '#facc15', top: '#f97316', bottom: '#1d4ed8', acc: 'none', cx: 820, cy: 740, speech: ['국제교육관 안으로 들어가면 GS25 편의점이 있어요!', '24시 무인복사실에서 발표 자료 출력했어요!', '글로벌타운 기숙사 뷰가 정말 멋져요!'] },
+            { name: '김 교수님 (상경관 경영학부)', icon: '👨‍🏫', hair: '#94a3b8', top: '#334155', bottom: '#1e293b', acc: 'glasses', cx: 1640, cy: 1240, speech: ['상경관 실내 세미나실에서 창업 피칭 대회가 열린다네.', '캠퍼스에서 마주치니 반갑구먼!', '도서관 원형 로비 타워 열람실도 자주 이용해 보게.'] },
+            { name: '신라냥이 (덕포지 마스코트)', icon: '🐱', isCat: true, hair: '#fb923c', top: '#ffffff', bottom: '#fb923c', cx: 620, cy: 1480, speech: ['야옹~ (덕포지 연못가에서 평화롭게 일광욕 중이다)', '골골골... (학우들이 주는 간식을 기다리고 있다)', '냐아~ (이번 학기 올 A+ 받으라고 응원해 준다!)'] },
+            { name: '정우성 (학생회관 밴드부)', icon: '🎸', hair: '#7c2d12', top: '#8b5cf6', bottom: '#111827', acc: 'scarf', cx: 1980, cy: 1620, speech: ['학생회관 안으로 들어오시면 동아리 무대가 있어요!', '학생회관 동아리방에서 축제 합주 연습 중이에요!', '청춘의 캠퍼스 낭만을 노래합니다~'] },
+            { name: '윤지수 (중앙도서관 장학생)', icon: '🤓', hair: '#1e1b4b', top: '#3b82f6', bottom: '#475569', acc: 'glasses', cx: 1220, cy: 1420, speech: ['도서관 앞에서 F키나 터치로 실내 열람실로 들어오세요!', '시험 기간엔 미리미리 요약 노트를 읽어두세요.', '주차장1 바로 위가 중앙도서관 입구예요!'] },
+            { name: '이수민 (사범관 국어교육과)', icon: '🎒', hair: '#451a03', top: '#14b8a6', bottom: '#1e293b', acc: 'beret', cx: 1620, cy: 900, speech: ['인문관에서 사범관으로 이어지는 숲길이 참 좋아요!', '사범관 실내 강의실에서 모의 수업 시연이 있어요!', '학우님 오늘 공강 시간 언제예요?'] },
+            { name: '민혁 (의생명관 수의보건)', icon: '🩺', hair: '#172554', top: '#f8fafc', bottom: '#059669', acc: 'coat', cx: 1760, cy: 2300, speech: ['의생명관 실내 실험실 장비가 정말 최신식이에요!', '초록색 지붕 건물들이 공학·의생명 연구단지입니다.', '흰 실험가운 입고 캠퍼스 걸으면 괜히 뿌듯해요!'] },
+            { name: '태민 (남쪽 대운동장·항공정비)', icon: '🛸', hair: '#4c1d95', top: '#dc2626', bottom: '#1f2937', acc: 'cap', cx: 2040, cy: 2920, speech: ['남쪽 대운동장 트랙은 진짜 종합경기장 같아요!', '바로 옆에 산학협력실습동이 있어요!', '남쪽 대운동장에서 열리는 대동제 축제 기대하세요!'] }
+        ];
+
+        function spawnCampusNpcs() {
+            campusNpcs = [];
+            CAMPUS_NPC_TEMPLATES.forEach((tpl, idx) => {
+                for (let copy = 0; copy < 2; copy++) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const dist = copy === 0 ? 25 : 95 + Math.random() * 60;
+                    const nx = Math.max(100, Math.min(WORLD_W - 100, tpl.cx + Math.cos(ang) * dist));
+                    const ny = Math.max(100, Math.min(WORLD_H - 100, tpl.cy + Math.sin(ang) * dist));
+
+                    const npcObj = {
+                        id: `npc_${idx}_${copy}`,
+                        name: copy === 0 ? tpl.name : `${tpl.name.split(' ')[0]} 학우`,
+                        icon: tpl.icon,
+                        isCat: tpl.isCat || false,
+                        hair: tpl.hair,
+                        top: copy === 0 ? tpl.top : '#4f46e5',
+                        bottom: tpl.bottom,
+                        acc: tpl.acc || 'none',
+                        x: nx,
+                        y: ny,
+                        homeX: nx,
+                        homeY: ny,
+                        radius: 15,
+                        speed: 42 + Math.random() * 20,
+                        facing: 'down',
+                        walkCycle: Math.random() * 10,
+                        speeches: tpl.speech,
+                        currentBubble: '',
+                        bubbleTimer: 0,
+                        wanderAngle: Math.random() * Math.PI * 2,
+                        wanderTimer: 1 + Math.random() * 3,
+                        isPaused: false,
+                        greetCooldown: 0
+                    };
+                    resolveTreeCollisions(npcObj, npcObj.radius);
+                    campusNpcs.push(npcObj);
+                }
+            });
+        }
+
+        function drawDQPixelCharacter(ctx, x, y, cfg) {
+            const p = 2.4;
+            const step = Math.sin(cfg.walkCycle) * (cfg.isMoving ? 1 : 0);
+            const breathe = Math.sin(performance.now() * 0.005 + (x * 0.1)) * 0.8;
+            const bobY = cfg.isMoving ? Math.abs(Math.sin(cfg.walkCycle * 2)) * 2.8 : breathe;
+
+            ctx.save();
+            ctx.translate(Math.floor(x), Math.floor(y - bobY));
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
+            ctx.beginPath();
+            ctx.ellipse(0, 16 + bobY, 14, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (cfg.isCat) {
+                ctx.fillStyle = '#1e1b4b';
+                ctx.fillRect(-5 * p, -3 * p, 10 * p, 8 * p);
+                ctx.fillStyle = '#fb923c';
+                ctx.fillRect(-4 * p, -2 * p, 8 * p, 6 * p);
+                ctx.fillStyle = '#ea580c';
+                ctx.fillRect(-3 * p, -2 * p, 2 * p, 2 * p);
+                ctx.fillRect(1 * p, -2 * p, 2 * p, 2 * p);
+                ctx.fillRect(-4 * p, -4.2 * p, 2.2 * p, 2.2 * p);
+                ctx.fillRect(1.8 * p, -4.2 * p, 2.2 * p, 2.2 * p);
+                ctx.fillStyle = '#fda4af';
+                ctx.fillRect(-3.4 * p, -3.5 * p, 1 * p, 1 * p);
+                ctx.fillRect(2.4 * p, -3.5 * p, 1 * p, 1 * p);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-2.2 * p, 0.8 * p, 4.4 * p, 3.2 * p);
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-2.6 * p, -0.8 * p, 1.6 * p, 1.8 * p);
+                ctx.fillRect(1 * p, -0.8 * p, 1.6 * p, 1.8 * p);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-2.3 * p, -0.6 * p, 0.7 * p, 0.7 * p);
+                ctx.fillRect(1.3 * p, -0.6 * p, 0.7 * p, 0.7 * p);
+                const tailSwing = Math.sin(performance.now() * 0.008) * 2;
+                ctx.fillStyle = '#ea580c';
+                ctx.fillRect((4 + tailSwing * 0.3) * p, -2.5 * p, 2 * p, 4.5 * p);
+                ctx.restore();
+                return;
+            }
+
+            const leftFootOffset = step > 0.2 ? -1.6 * p : (step < -0.2 ? 1.3 * p : 0);
+            const rightFootOffset = step > 0.2 ? 1.3 * p : (step < -0.2 ? -1.6 * p : 0);
+
+            if (cfg.facing === 'left' || cfg.facing === 'right') {
+                const bagX = cfg.facing === 'left' ? 3.2 * p : -5.4 * p;
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(bagX - 1, -2.2 * p - 1, 2.6 * p + 2, 5.2 * p + 2);
+                ctx.fillStyle = '#b45309';
+                ctx.fillRect(bagX, -2.2 * p, 2.6 * p, 5.2 * p);
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(bagX + 0.4 * p, -1.8 * p, 1.6 * p, 2 * p);
+            }
+
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(-3.6 * p - 1, 3 * p + leftFootOffset - 1, 3.1 * p + 2, 3.6 * p + 2);
+            ctx.fillRect(0.5 * p - 1, 3 * p + rightFootOffset - 1, 3.1 * p + 2, 3.6 * p + 2);
+
+            ctx.fillStyle = cfg.bottom || '#1e293b';
+            ctx.fillRect(-3.5 * p, 3 * p + leftFootOffset, 3 * p, 2.2 * p);
+            ctx.fillRect(0.5 * p, 3 * p + rightFootOffset, 3 * p, 2.2 * p);
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(-3.5 * p, 5 * p + leftFootOffset, 3 * p, 1.5 * p);
+            ctx.fillRect(0.5 * p, 5 * p + rightFootOffset, 3 * p, 1.5 * p);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(-3.5 * p, 5.8 * p + leftFootOffset, 3 * p, 0.5 * p);
+            ctx.fillRect(0.5 * p, 5.8 * p + rightFootOffset, 3 * p, 0.5 * p);
+
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(-4.6 * p - 1.5, -2.6 * p - 1.5, 9.2 * p + 3, 6.2 * p + 3);
+
+            ctx.fillStyle = cfg.top || '#2563eb';
+            ctx.fillRect(-4.5 * p, -2.5 * p, 9 * p, 6 * p);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+            ctx.fillRect(1.5 * p, -2.5 * p, 3 * p, 6 * p);
+
+            if (cfg.isPlayer) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-1.4 * p, -2.5 * p, 2.8 * p, 5.5 * p);
+                ctx.fillStyle = '#fde047';
+                ctx.fillRect(1.8 * p, -1.2 * p, 1.6 * p, 1.6 * p);
+                ctx.fillStyle = '#93c5fd';
+                ctx.fillRect(-4.5 * p, 2.6 * p, 9 * p, 0.8 * p);
+            } else if (cfg.acc === 'coat') {
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillRect(-1.2 * p, -2.5 * p, 2.4 * p, 4.5 * p);
+            } else if (cfg.acc === 'scarf') {
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(-4.2 * p, -2.6 * p, 8.4 * p, 1.8 * p);
+                ctx.fillRect(1.5 * p, -1.5 * p, 2 * p, 3 * p);
+            } else {
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(-1.2 * p, -2.5 * p, 2.4 * p, 2 * p);
+            }
+
+            if (cfg.facing === 'up') {
+                ctx.fillStyle = '#090d16';
+                ctx.fillRect(-3.6 * p - 1, -2 * p - 1, 7.2 * p + 2, 5.2 * p + 2);
+                ctx.fillStyle = cfg.isPlayer ? '#b45309' : '#475569';
+                ctx.fillRect(-3.5 * p, -2 * p, 7 * p, 5 * p);
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(-2.8 * p, -1.5 * p, 5.6 * p, 2.2 * p);
+                ctx.fillStyle = '#fde047';
+                ctx.fillRect(-1 * p, 0.2 * p, 2 * p, 1.2 * p);
+            }
+
+            const leftArmY = -2 * p - leftFootOffset * 0.5;
+            const rightArmY = -2 * p - rightFootOffset * 0.5;
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(-6.2 * p - 1, leftArmY - 1, 2.1 * p + 2, 4.6 * p + 2);
+            ctx.fillRect(4.1 * p - 1, rightArmY - 1, 2.1 * p + 2, 4.6 * p + 2);
+
+            ctx.fillStyle = cfg.isPlayer ? '#f8fafc' : (cfg.top || '#2563eb');
+            ctx.fillRect(-6 * p, leftArmY, 2 * p, 3.3 * p);
+            ctx.fillRect(4 * p, rightArmY, 2 * p, 3.3 * p);
+
+            ctx.fillStyle = '#fed7aa';
+            ctx.fillRect(-6 * p, leftArmY + 3.2 * p, 2 * p, 1.4 * p);
+            ctx.fillRect(4 * p, rightArmY + 3.2 * p, 2 * p, 1.4 * p);
+
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(-5.2 * p - 1.5, -9.8 * p - 1.5, 10.4 * p + 3, 7.4 * p + 3);
+
+            ctx.fillStyle = '#ffedd5';
+            ctx.fillRect(-4.6 * p, -8.6 * p, 9.2 * p, 6.2 * p);
+            ctx.fillStyle = '#fed7aa';
+            ctx.fillRect(-4.6 * p, -3.4 * p, 9.2 * p, 1 * p);
+
+            ctx.fillStyle = cfg.hair || '#1e293b';
+            ctx.fillRect(-5.2 * p, -10 * p, 10.4 * p, 3.2 * p);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.fillRect(-3.5 * p, -9.2 * p, 3 * p, 1 * p);
+            ctx.fillRect(1 * p, -9.2 * p, 2 * p, 1 * p);
+
+            if (cfg.facing === 'up') {
+                ctx.fillStyle = cfg.hair || '#1e293b';
+                ctx.fillRect(-5.2 * p, -9.8 * p, 10.4 * p, 7 * p);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+                ctx.fillRect(-3 * p, -8 * p, 6 * p, 1.2 * p);
+            } else {
+                ctx.fillStyle = cfg.hair || '#1e293b';
+                ctx.fillRect(-5.2 * p, -7.6 * p, 1.9 * p, 3.8 * p);
+                ctx.fillRect(3.3 * p, -7.6 * p, 1.9 * p, 3.8 * p);
+                ctx.fillRect(-2 * p, -7.2 * p, 1.5 * p, 1 * p);
+                ctx.fillRect(0.8 * p, -7.2 * p, 1.5 * p, 1 * p);
+
+                const eyeShiftX = cfg.facing === 'left' ? -1.2 * p : (cfg.facing === 'right' ? 1.2 * p : 0);
+
+                ctx.fillStyle = '#090d16';
+                ctx.fillRect(-2.7 * p + eyeShiftX, -5.8 * p, 1.6 * p, 2.3 * p);
+                ctx.fillRect(1.1 * p + eyeShiftX, -5.8 * p, 1.6 * p, 2.3 * p);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-2.5 * p + eyeShiftX, -5.6 * p, 0.8 * p, 0.9 * p);
+                ctx.fillRect(1.3 * p + eyeShiftX, -5.6 * p, 0.8 * p, 0.9 * p);
+
+                ctx.fillStyle = 'rgba(244, 114, 182, 0.6)';
+                ctx.fillRect(-3.6 * p + eyeShiftX, -3.8 * p, 1.5 * p, 1 * p);
+                ctx.fillRect(2.1 * p + eyeShiftX, -3.8 * p, 1.5 * p, 1 * p);
+
+                if (cfg.acc === 'glasses') {
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.lineWidth = 1.6;
+                    ctx.strokeRect(-3.3 * p + eyeShiftX, -6.2 * p, 2.6 * p, 2.6 * p);
+                    ctx.strokeRect(0.7 * p + eyeShiftX, -6.2 * p, 2.6 * p, 2.6 * p);
+                }
+            }
+
+            if (cfg.isPlayer) {
+                ctx.fillStyle = '#1d4ed8';
+                ctx.fillRect(-5.4 * p, -10.8 * p, 10.8 * p, 2.2 * p);
+                ctx.fillStyle = '#fde047';
+                ctx.fillRect(-1.5 * p, -10.6 * p, 3 * p, 1.3 * p);
+            } else if (cfg.acc === 'beret') {
+                ctx.fillStyle = '#ec4899';
+                ctx.fillRect(-4.6 * p, -11.2 * p, 9.2 * p, 2.3 * p);
+            } else if (cfg.acc === 'cap') {
+                ctx.fillStyle = '#eab308';
+                ctx.fillRect(-5.2 * p, -10.8 * p, 10.4 * p, 2 * p);
+            } else if (cfg.acc === 'band') {
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(-5.2 * p, -8.5 * p, 10.4 * p, 1.2 * p);
+            }
+
+            ctx.restore();
+        }
+
+        function performGreetAction() {
+            if (player.greetAnimTimer > 0.1) return;
+            player.greetAnimTimer = 0.35;
+
+            createBurstParticles(player.x, player.y - 10, '#60a5fa', 12, 110);
+
+            if (gameScene === 'indoor' && activeIndoorPoi) {
+                if (currentClosestIndoorNpc) {
+                    const dx = player.x - currentClosestIndoorNpc.x;
+                    const dy = player.y - currentClosestIndoorNpc.y;
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        currentClosestIndoorNpc.facing = dx > 0 ? 'right' : 'left';
+                    } else {
+                        currentClosestIndoorNpc.facing = dy > 0 ? 'down' : 'up';
+                    }
+                    createBurstParticles(currentClosestIndoorNpc.x, currentClosestIndoorNpc.y, '#facc15', 16, 120);
+                    openPoiModal(activeIndoorPoi, currentClosestIndoorNpc.idx);
+                    return;
+                }
+                if (nearIndoorExit) {
+                    exitIndoorMap();
+                    return;
+                }
+                openPoiModal(activeIndoorPoi, 0);
+                return;
+            }
+
+            let greetedAnyone = false;
+            campusNpcs.forEach(npc => {
+                const dist = Math.hypot(npc.x - player.x, npc.y - player.y);
+                if (dist <= 115) {
+                    greetedAnyone = true;
+                    const randomLine = npc.speeches[Math.floor(Math.random() * npc.speeches.length)];
+                    npc.currentBubble = randomLine;
+                    npc.bubbleTimer = 4.5;
+                    npc.isPaused = true;
+
+                    const dx = player.x - npc.x;
+                    const dy = player.y - npc.y;
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        npc.facing = dx > 0 ? 'right' : 'left';
+                    } else {
+                        npc.facing = dy > 0 ? 'down' : 'up';
+                    }
+
+                    if (npc.greetCooldown <= 0) {
+                        npc.greetCooldown = 10.0;
+                        player.greetCount++;
+                        player.charm += 1;
+                        player.gold += 150;
+                        gainExp(25);
+                        createBurstParticles(npc.x, npc.y, '#f472b6', 18, 140);
+                        addFloatingText(npc.x, npc.y - 38, '반가워요! (+친화1, +150P, +25EXP)', '#ec4899', 13);
+
+                        if (player.subQuestActive) {
+                            player.subQuestProgress++;
+                            if (player.subQuestProgress >= 3) {
+                                player.subQuestActive = false;
+                                player.subQuestProgress = 0;
+                                player.artSense += 5;
+                                player.coffees += 2;
+                                player.gold += 1500;
+                                showToast('🎨 [박물관·예술관 홍보 완료] 학우 3명에게 홍보를 마쳐 감성+5, 커피 2잔, 1,500P를 받았습니다!');
+                            }
+                        }
+                    } else {
+                        addFloatingText(npc.x, npc.y - 34, '👋 반갑게 인사를 나눴습니다!', '#3b82f6', 12);
+                    }
+                }
+            });
+
+            if (!greetedAnyone) {
+                if (currentClosestPoi) {
+                    enterIndoorMap(currentClosestPoi);
+                } else {
+                    addFloatingText(player.x, player.y - 34, '👋 안녕하세요!', '#fde047', 14);
+                }
+            }
+
+            updateUI();
+        }
+
+        function triggerInteraction() {
+            if (gameScene === 'indoor') {
+                if (nearIndoorExit) {
+                    exitIndoorMap();
+                } else if (currentClosestIndoorNpc) {
+                    openPoiModal(activeIndoorPoi, currentClosestIndoorNpc.idx);
+                } else if (activeIndoorPoi) {
+                    openPoiModal(activeIndoorPoi, 0);
+                }
+                return;
+            }
+
+            if (currentClosestPoi) {
+                enterIndoorMap(currentClosestPoi);
+            } else if (currentClosestNpc) {
+                performGreetAction();
+            }
+        }
+
+        function useCampusAction(slot) {
+            if (actionCooldowns[slot] > 0) {
+                showToast('잠시 후 다시 사용할 수 있습니다.');
+                return;
+            }
+
+            if (slot === 1) {
+                if (player.mp < 10) { showToast('집중력이 부족합니다! 차차커피를 마시거나 기숙사에서 쉬세요.'); return; }
+                player.mp -= 10;
+                actionCooldowns[1] = actionMaxCooldowns[1];
+                player.sprintTimer = 3.5;
+
+                createBurstParticles(player.x, player.y, '#38bdf8', 20, 160);
+                addFloatingText(player.x, player.y - 34, '🏃 대시 이동 ON!', '#38bdf8', 15);
+            } else if (slot === 2) {
+                if (player.coffees <= 0) {
+                    showToast('보유한 커피가 없습니다! 인문관(차차커피코)이나 국제교육관(GS25) 실내에서 구매하세요.');
+                    return;
+                }
+                player.coffees--;
+                actionCooldowns[2] = actionMaxCooldowns[2];
+                player.hp = Math.min(player.maxHp, player.hp + 45);
+                player.mp = Math.min(player.maxMp, player.mp + 55);
+
+                createBurstParticles(player.x, player.y, '#f59e0b', 22, 150);
+                addFloatingText(player.x, player.y - 36, '☕ 차차커피 충전! (HP+45 / MP+55)', '#fde047', 15);
+            } else if (slot === 3) {
+                actionCooldowns[3] = actionMaxCooldowns[3];
+                player.photoCount++;
+                player.artSense += 1;
+                gainExp(20);
+
+                createBurstParticles(player.x, player.y, '#a855f7', 24, 180);
+                const spotName = gameScene === 'indoor' && activeIndoorPoi
+                    ? `${activeIndoorPoi.name.split(' ')[0]} 실내`
+                    : (currentClosestPoi ? currentClosestPoi.name.split(' ')[0] : '신라대 캠퍼스');
+                addFloatingText(player.x, player.y - 34, `📸 [${spotName}] 스냅샷 저장! (감성+1, +20EXP)`, '#e879f9', 14);
+            } else if (slot === 4) {
+                if (player.mp < 15) {
+                    showToast('집중력이 부족하여 노트가 눈에 들어오지 않습니다! 휴식을 취하세요.');
+                    return;
+                }
+                player.mp -= 15;
+                actionCooldowns[4] = actionMaxCooldowns[4];
+                player.intellect += 2;
+                gainExp(35);
+
+                createBurstParticles(player.x, player.y, '#3b82f6', 20, 150);
+                addFloatingText(player.x, player.y - 34, '📖 전공노트 정독 완료! (지식+2, +35EXP)', '#60a5fa', 14);
+            }
+
+            updateUI();
+        }
+
+        function gainExp(amount) {
+            player.exp += amount;
+            while (player.exp >= player.maxExp) {
+                player.exp -= player.maxExp;
+                player.level++;
+                player.maxExp = Math.floor(player.maxExp * 1.35);
+                player.maxHp += 20;
+                player.maxMp += 20;
+                player.hp = player.maxHp;
+                player.mp = player.maxMp;
+                player.intellect += 3;
+                player.charm += 3;
+
+                const gradeNames = ['새내기 1학년', '적응한 2학년', '전공심화 3학년', '졸업반 4학년', '명예 석사과정', '신라대 전설의 선배'];
+                player.title = gradeNames[Math.min(player.level - 1, gradeNames.length - 1)];
+
+                createBurstParticles(player.x, player.y, '#facc15', 40, 240);
+                addFloatingText(player.x, player.y - 48, `🎺 레벨 업! (${player.level}학년 진급)`, '#fde047', 18);
+                showToast(`🎉 빠밤~! [${player.title}] 단계로 성장했습니다! 컨디션과 집중력이 모두 회복됩니다.`);
+            }
+            updateUI();
+        }
+
+        function checkMainQuestCompletion() {
+            const q = MAIN_QUESTS[player.questStep];
+            if (!q || q.type === 'complete') return;
+
+            if (player.questProgress >= q.goal) {
+                player.gold += q.rewardGold;
+                gainExp(q.rewardExp);
+                showToast(`🎊 [캠퍼스 일정 완료] ${q.title} (+${q.rewardGold.toLocaleString()}P, +${q.rewardExp}EXP)`);
+                player.questStep = Math.min(MAIN_QUESTS.length - 1, player.questStep + 1);
+                player.questProgress = 0;
+                updateUI();
+                saveGameData(false);
+            }
+        }
+
+        function guideToQuestTarget() {
+            if (gameScene === 'indoor') {
+                showToast('🚪 먼저 실내 아래쪽 EXIT 출구로 나가면 야외 길안내선이 표시됩니다!');
+                return;
+            }
+            const q = MAIN_QUESTS[player.questStep];
+            if (!q) return;
+            const targetPoi = POIS.find(p => p.id === q.targetPoi);
+            if (targetPoi) {
+                activeGuideTarget = { x: targetPoi.x, y: targetPoi.y, name: targetPoi.name };
+                showToast(`🧭 [${targetPoi.name}] 방향으로 황금빛 길안내선이 표시됩니다.`);
+            }
+        }
+
+        // =========================================================================
+        // 8. 실내 NPC 대화 모달 & 건물별 활동 함수들
+        // =========================================================================
+        function openPoiModal(poi, npcIdx = 0) {
+            selectedNpcIndexInModal = npcIdx;
+            isTouchMoving = false;
+            keys['w'] = keys['s'] = keys['a'] = keys['d'] = false;
+
+            const currentQ = MAIN_QUESTS[player.questStep];
+            if (currentQ && currentQ.type === 'visit' && currentQ.targetPoi === poi.id) {
+                player.questProgress = 1;
+                checkMainQuestCompletion();
+            }
+
+            document.getElementById('modalPoiIcon').textContent = poi.icon;
+            document.getElementById('modalPoiSubName').textContent = `${poi.subName} (실내 대화)`;
+            document.getElementById('modalPoiTitle').textContent = poi.name;
+
+            const tabsEl = document.getElementById('modalNpcTabs');
+            tabsEl.innerHTML = poi.npcs.map((npc, idx) => `
+                <button onclick="openPoiModal(POIS.find(p => p.id === '${poi.id}'), ${idx})"
+                    class="px-3 py-1.5 md:px-4 md:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border-2 transition-all ${idx === npcIdx ? 'bg-blue-600 text-white border-blue-700 shadow-lg scale-105' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}">
+                    <span class="text-base">${npc.icon}</span>
+                    <span>${npc.name}</span>
+                </button>
+            `).join('');
+
+            const activeNpc = poi.npcs[npcIdx] || poi.npcs[0];
+            document.getElementById('modalNpcName').textContent = `❖ ${activeNpc.icon} ${activeNpc.name}`;
+            document.getElementById('modalNpcRole').textContent = activeNpc.role;
+            document.getElementById('modalNpcDialog').textContent = `"${activeNpc.dialog}"`;
+
+            const container = document.getElementById('modalActionContainer');
+            container.innerHTML = '';
+
+            if (poi.id === 'main_gate') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-slate-800">💳 모범 재학생 활동 장학금 수령</div>
+                            <div class="text-xs text-slate-600">인사 나눈 학우(${player.greetCount}명) & 스냅샷(${player.photoCount}장) 기록 정산 보너스</div>
+                        </div>
+                        <button onclick="claimScholarshipBonus()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">정산받기</button>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-emerald-900">🌿 덕포지 생태연못 수변 산책</div>
+                            <div class="text-xs text-slate-600">컨디션 +30 회복 & 감성 +2, +40 EXP 획득</div>
+                        </div>
+                        <button onclick="walkDeokpoji()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">산책하기</button>
+                    </div>
+                `;
+            } else if (poi.id === 'art_museum') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-purple-900">🎨 예술관 실기 & 박물관 문화강좌 수강</div>
+                            <div class="text-xs text-slate-600">집중력 20 소모 → 창의·감성 +4, 학점 +65 EXP 획득</div>
+                        </div>
+                        <button onclick="takeArtWorkshop()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">수강하기</button>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-purple-900">📢 [홍보 미션] 박물관 특별전 캠퍼스 학우 홍보</div>
+                            <div class="text-xs text-slate-600">산책 중인 도트 학우 3명에게 인사하면 커피 2잔 & 1,500P 지급</div>
+                        </div>
+                        <button onclick="acceptArtPromoQuest()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">${player.subQuestActive ? '진행중' : '미션수락'}</button>
+                    </div>
+                `;
+            } else if (poi.id === 'intl_edu') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-cyan-900">🏪 GS25 편의점 커피 & 간식 구매 (보유: ${player.coffees}개)</div>
+                            <div class="text-xs text-slate-600">컨디션+45, 집중력+55 즉시 회복 아이템 | 비용: 500 P</div>
+                        </div>
+                        <button onclick="buyCampusCoffee()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">구매 (500P)</button>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-blue-900">🖨️ 24시 무인복사실 전공 요약본 제본</div>
+                            <div class="text-xs text-slate-600">300P 소모 → 전공 지식 +3 & +50 EXP 획득</div>
+                        </div>
+                        <button onclick="printStudyNotes()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">제본 (300P)</button>
+                    </div>
+                `;
+            } else if (poi.id === 'humanities') {
+                const quiz = QUIZ_BANK[Math.floor(Math.random() * QUIZ_BANK.length)];
+                window.currentQuizObj = quiz;
+                container.innerHTML = `
+                    <div class="p-4 bg-slate-50 rounded-xl border-2 border-blue-200">
+                        <div class="text-xs font-extrabold text-blue-800 mb-1.5">📖 인문관 교양 학술 퀴즈 (정답 시 지식+3, +120 EXP, +1,000P)</div>
+                        <div class="text-sm md:text-base font-bold text-slate-900 mb-3">${quiz.q}</div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            ${quiz.options.map((opt, idx) => `
+                                <button onclick="submitHumanitiesQuiz(${idx})" class="campus-btn py-2.5 px-3.5 rounded-lg text-xs font-bold text-left">${idx + 1}. ${opt}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-amber-900">☕ 차차커피코 아이스 아메리카노 테이크아웃 (보유: ${player.coffees}잔)</div>
+                            <div class="text-xs text-slate-600">인문관 명물 카페 음료 보충 | 비용: 500 P</div>
+                        </div>
+                        <button onclick="buyCampusCoffee()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">주문 (500P)</button>
+                    </div>
+                `;
+            } else if (poi.id === 'library') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-blue-950">📚 중앙도서관 열람실 집중 정독</div>
+                            <div class="text-xs text-slate-600">집중력 15 소모 → 전공 지식 +3, 학점 +70 EXP 획득</div>
+                        </div>
+                        <button onclick="studyAtLibrary()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">열람실 학습</button>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-slate-800">💻 학습용 스마트 태블릿 & 전공서적 업그레이드</div>
+                            <div class="text-xs text-slate-600">전공 지식 +8 영구 상승 | 비용: 2,500 P</div>
+                        </div>
+                        <button onclick="upgradeStudyGear()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">구입 (2,500P)</button>
+                    </div>
+                `;
+            } else if (poi.id === 'globaltown') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-slate-800">🛌 글로벌타운 & 제3기숙사 침대 휴식</div>
+                            <div class="text-xs text-slate-600">컨디션(HP)과 집중력(MP)을 즉시 100% 무료 충전합니다.</div>
+                        </div>
+                        <button onclick="restAtDormitory()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">편안히 휴식</button>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-blue-900">🌍 외국인 유학생과 글로벌 회화 스터디</div>
+                            <div class="text-xs text-slate-600">집중력 15 소모 → 친화력 +3, 지식 +2, +60 EXP 획득</div>
+                        </div>
+                        <button onclick="joinGlobalLanguageExchange()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">회화 참여</button>
+                    </div>
+                `;
+            } else if (poi.id === 'education') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-emerald-950">🎓 사범관 모의 수업 시연 & 임용 특강</div>
+                            <div class="text-xs text-slate-600">집중력 15 소모 → 전공 지식 +3, 친화력 +2, +75 EXP 획득</div>
+                        </div>
+                        <button onclick="takeEducationClass()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">수업 시연</button>
+                    </div>
+                `;
+            } else if (poi.id === 'commerce') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-emerald-900">📈 상경관 대학생 모의 창업 아이디어 피칭</div>
+                            <div class="text-xs text-slate-600">참가비 1,000P → 심사 결과에 따라 최대 3,000P 창업장학금 획득!</div>
+                        </div>
+                        <button onclick="playStartupPitch()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">도전 (1,000P)</button>
+                    </div>
+                `;
+            } else if (poi.id === 'student_union') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-amber-900">🍱 학생회관 커피숍 가기</div>
+                            <div class="text-xs text-slate-600">최대 컨디션 +10 영구 증가 & 컨디션 100% 회복 | 비용: 800 P</div>
+                        </div>
+                        <button onclick="eatStudentCafeteria()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">학식 (800P)</button>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-indigo-900">🎸 학생회관 중앙동아리 가입 (현재: ${player.clubName})</div>
+                            <div class="text-xs text-slate-600">동아리 가입 시 친화력 +5, 감성 +5 및 학점 보너스 획득!</div>
+                        </div>
+                        <button onclick="joinCampusClub()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">동아리 가입</button>
+                    </div>
+                `;
+            } else if (poi.id === 'arena') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-emerald-900">🎾 중앙 운동장 축구 & 테니스장 친선 경기</div>
+                            <div class="text-xs text-slate-600">컨디션 20 소모 → 건강 +4, 친화력 +3, 상금 +1,200P & +80 EXP</div>
+                        </div>
+                        <button onclick="enjoyCampusSports('futsal')" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">경기 참가</button>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-purple-900">🎤 운동장 스탠드 저녁 버스킹 공연 관람</div>
+                            <div class="text-xs text-slate-600">집중력 30 회복 & 창의·감성 +3, +50 EXP 획득</div>
+                        </div>
+                        <button onclick="enjoyCampusSports('busking')" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">공연 관람</button>
+                    </div>
+                `;
+            } else if (poi.id === 'hq_gym') {
+                container.innerHTML = `
+                    <div class="p-4 bg-slate-50 rounded-xl border-2 border-teal-300 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-teal-950">🎓 대학본부동 희망 학부(전공) 공식 배정</div>
+                            <div class="text-xs text-slate-600">현재 전공: <b>${player.majorName}</b> (터치 시 희망 전공 변경 및 지식+5)</div>
+                        </div>
+                        <button onclick="selectMajorDepartment()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">전공 선택</button>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-blue-900">🏀 북측 실내체육관 농구·배드민턴 강습</div>
+                            <div class="text-xs text-slate-600">컨디션 15 소모 → 체력·건강 +4 & +65 EXP 획득</div>
+                        </div>
+                        <button onclick="enjoyCampusSports('futsal')" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">체육관 운동</button>
+                    </div>
+                `;
+            } else if (poi.id === 'bio_eng_air' || poi.id === 'industry_academic') {
+                container.innerHTML = `
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-purple-950">🔬 첨단 융합 캡스톤 & 산학협력 실습 (누적 ${player.labReportCount}회)</div>
+                            <div class="text-xs text-slate-600">집중력 20 소모 → 전공 지식 +4, 연구 장려금 +1,500P, +90 EXP</div>
+                        </div>
+                        <button onclick="doEngineeringLabWork()" class="campus-btn px-4 py-2 rounded-lg text-xs font-bold shrink-0">실습 참여</button>
+                    </div>
+                `;
+            } else if (poi.id === 'south_stadium') {
+                container.innerHTML = `
+                    <div class="p-4 bg-rose-50 rounded-xl border-2 border-rose-300 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-sm text-rose-950">🎆 [하이라이트] 남쪽 대운동장 신라 대동제 개막!</div>
+                            <div class="text-xs text-slate-700">붉은 트랙 대운동장 특설무대에서 불꽃놀이와 함께 축제를 즐기며 대량의 경험치와 칭호를 획득합니다!</div>
+                        </div>
+                        <button onclick="celebrateCampusFestival()" class="campus-btn px-5 py-2.5 rounded-lg text-xs font-bold shrink-0">축제 즐기기</button>
+                    </div>
+                `;
+            }
+
+            const modal = document.getElementById('poiModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closePoiModal() {
+            const modal = document.getElementById('poiModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function claimScholarshipBonus() {
+            const bonus = (player.greetCount * 200) + (player.photoCount * 150) + 500;
+            player.gold += bonus;
+            showToast(`💳 학생복지 장학금 ${bonus.toLocaleString()} P가 지급되었습니다!`);
+            updateUI();
+        }
+
+        function walkDeokpoji() {
+            player.hp = Math.min(player.maxHp, player.hp + 30);
+            player.artSense += 2;
+            gainExp(40);
+            createBurstParticles(player.x, player.y, '#38bdf8', 24, 160);
+            showToast('🌿 덕포지 생태연못 둘레길을 산책하며 상쾌하게 컨디션을 회복했습니다!');
+            updateUI();
+            closePoiModal();
+        }
+
+        function printStudyNotes() {
+            if (player.gold < 300) {
+                showToast('복사 비용(300P)이 부족합니다!');
+                return;
+            }
+            player.gold -= 300;
+            player.intellect += 3;
+            gainExp(50);
+            showToast('🖨️ 국제교육관 24시 무인복사실에서 핵심 요약본을 제본했습니다! (지식+3)');
+            updateUI();
+            closePoiModal();
+        }
+
+        function studyAtLibrary() {
+            if (player.mp < 15) {
+                showToast('집중력이 부족합니다! 차차커피를 마시거나 휴식하세요.');
+                return;
+            }
+            player.mp -= 15;
+            player.intellect += 3;
+            gainExp(70);
+            createBurstParticles(player.x, player.y, '#3b82f6', 25, 170);
+            showToast('📚 중앙도서관 원형타워 열람실에서 집중 학습을 마쳤습니다! (지식+3, +70 EXP)');
+            updateUI();
+            closePoiModal();
+        }
+
+        function takeEducationClass() {
+            if (player.mp < 15) {
+                showToast('집중력이 부족합니다!');
+                return;
+            }
+            player.mp -= 15;
+            player.intellect += 3;
+            player.charm += 2;
+            gainExp(75);
+            createBurstParticles(player.x, player.y, '#10b981', 25, 170);
+            showToast('🎓 사범관 모의 수업 시연을 성공적으로 마쳤습니다! (지식+3, 친화+2)');
+            updateUI();
+            closePoiModal();
+        }
+
+        function buyCampusCoffee() {
+            if (player.gold < 500) {
+                showToast('포인트(500P)가 부족합니다!');
+                return;
+            }
+            player.gold -= 500;
+            player.coffees++;
+            showToast('☕ 시원한 아이스 아메리카노를 1잔 구매했습니다!');
+            updateUI();
+            const targetPoi = activeIndoorPoi || currentClosestPoi;
+            if (targetPoi) openPoiModal(targetPoi, selectedNpcIndexInModal);
+        }
+
+        function takeArtWorkshop() {
+            if (player.mp < 20) {
+                showToast('집중력이 부족합니다! 커피를 마시거나 기숙사에서 휴식하세요.');
+                return;
+            }
+            player.mp -= 20;
+            player.artSense += 4;
+            gainExp(65);
+            createBurstParticles(player.x, player.y, '#a855f7', 25, 180);
+            showToast('🎨 예술관 실기 워크숍을 수강하여 창의·감성(+4)과 학점(+65 EXP)이 올랐습니다!');
+            updateUI();
+            closePoiModal();
+        }
+
+        function acceptArtPromoQuest() {
+            if (player.subQuestActive) {
+                showToast('이미 홍보 미션을 진행 중입니다!');
+                return;
+            }
+            player.subQuestActive = true;
+            player.subQuestProgress = 0;
+            showToast('📢 [홍보 미션 시작] 야외 캠퍼스를 걸어 다니는 도트 학우 3명에게 다가가 인사하세요!');
+            updateUI();
+            closePoiModal();
+        }
+
+        function submitHumanitiesQuiz(selectedIdx) {
+            const quiz = window.currentQuizObj;
+            if (!quiz) return;
+            if (selectedIdx === quiz.answer) {
+                player.intellect += 3;
+                player.gold += 1000;
+                gainExp(120);
+                showToast('⭕ 정답입니다! 전공 지식 +3, 장학금 +1,000P, +120 EXP를 획득했습니다!');
+                if (player.questStep === 1) {
+                    player.questProgress = 1;
+                    checkMainQuestCompletion();
+                }
+                closePoiModal();
+            } else {
+                showToast('❌ 아쉽지만 오답입니다! 다시 한번 생각해 보세요.');
+            }
+            updateUI();
+        }
+
+        function upgradeStudyGear() {
+            if (player.gold < 2500) {
+                showToast('장학 포인트(2,500P)가 부족합니다!');
+                return;
+            }
+            player.gold -= 2500;
+            player.intellect += 8;
+            player.gearName = '스마트 태블릿 & 전공 마스터북';
+            showToast('💻 [스마트 태블릿 & 전공 마스터북] 구비 완료! 전공 지식이 +8 상승했습니다!');
+            updateUI();
+            const targetPoi = activeIndoorPoi || currentClosestPoi;
+            if (targetPoi) openPoiModal(targetPoi, selectedNpcIndexInModal);
+        }
+
+        function restAtDormitory() {
+            player.hp = player.maxHp;
+            player.mp = player.maxMp;
+            createBurstParticles(player.x, player.y, '#38bdf8', 35, 200);
+            showToast('🛌 글로벌타운 & 제3기숙사에서 편안히 쉬어 컨디션과 집중력이 100% 회복되었습니다!');
+            updateUI();
+            closePoiModal();
+        }
+
+        function joinGlobalLanguageExchange() {
+            if (player.mp < 15) {
+                showToast('집중력이 부족합니다! 바로 위 기숙사 휴식 버튼을 눌러 회복하세요.');
+                return;
+            }
+            player.mp -= 15;
+            player.charm += 3;
+            player.intellect += 2;
+            gainExp(60);
+            showToast('🌍 외국인 교환학생들과 즐겁게 회화 스터디를 마쳤습니다! (친화+3, 지식+2)');
+            updateUI();
+            closePoiModal();
+        }
+
+        function eatStudentCafeteria() {
+            if (player.gold < 800) {
+                showToast('포인트(800P)가 부족합니다!');
+                return;
+            }
+            player.gold -= 800;
+            player.maxHp += 10;
+            player.hp = player.maxHp;
+            player.mp = player.maxMp;
+            if (player.questStep === 2) {
+                player.questProgress = 1;
+                checkMainQuestCompletion();
+            }
+            createBurstParticles(player.x, player.y, '#f97316', 28, 180);
+            showToast('🍱 학생회관에서 컨디션이 증가하고 스트레스가 모두 회복되었습니다!');
+            updateUI();
+            closePoiModal();
+        }
+
+        function joinCampusClub() {
+            const clubs = ['어쿠스틱 밴드 동아리', 'AI·게임개발 학회', '캠퍼스 사진·영상 동아리', '글로벌 봉사 동아리'];
+            const nextClub = clubs[(clubs.indexOf(player.clubName) + 1) % clubs.length];
+            player.clubName = nextClub;
+            player.charm += 5;
+            player.artSense += 5;
+            gainExp(70);
+            if (player.questStep === 2) {
+                player.questProgress = 1;
+                checkMainQuestCompletion();
+            }
+            showToast(`🎸 [${nextClub}]에 가입했습니다! 동아리 선후배들과 친해져 친화력과 감성이 상승했습니다!`);
+            updateUI();
+            const targetPoi = activeIndoorPoi || currentClosestPoi;
+            if (targetPoi) openPoiModal(targetPoi, selectedNpcIndexInModal);
+        }
+
+        function playStartupPitch() {
+            if (player.gold < 1000) {
+                showToast('창업 경진대회 준비금(1,000P)이 부족합니다!');
+                return;
+            }
+            player.gold -= 1000;
+            const roll = Math.random();
+            if (roll > 0.35) {
+                const prize = roll > 0.75 ? 3000 : 2000;
+                player.gold += prize;
+                gainExp(50);
+                showToast(`🏆 상경관 창업 아이디어 피칭 우수상 수상! 상금 ${prize.toLocaleString()} P를 획득했습니다!`);
+            } else {
+                player.gold += 500;
+                gainExp(30);
+                showToast('👏 아쉽게 입상은 못 했지만 참가 장려금 500P와 좋은 발표 경험을 얻었습니다!');
+            }
+            updateUI();
+        }
+
+        function enjoyCampusSports(type) {
+            if (type === 'futsal') {
+                if (player.hp < 25) {
+                    showToast('컨디션(체력)이 부족합니다! 학식을 먹거나 기숙사에서 휴식하세요.');
+                    return;
+                }
+                player.hp -= 20;
+                player.fitness += 4;
+                player.charm += 3;
+                player.gold += 1200;
+                gainExp(80);
+                createBurstParticles(player.x, player.y, '#10b981', 28, 200);
+                showToast('⚽ 친선 스포츠 경기 맹활약! 건강+4, 친화+3, 장학금 1,200P 획득!');
+            } else {
+                player.mp = Math.min(player.maxMp, player.mp + 30);
+                player.artSense += 3;
+                gainExp(50);
+                createBurstParticles(player.x, player.y, '#ec4899', 28, 180);
+                showToast('🎤 낭만적인 운동장 버스킹 공연을 감상하며 힐링했습니다! (집중력+30, 감성+3)');
+            }
+            updateUI();
+            closePoiModal();
+        }
+
+        function selectMajorDepartment() {
+            const majors = ['항공·스마트공학부', '바이오·수의보건학부', '글로벌비즈니스학부', '디자인·예술학부', '사범·인문학부'];
+            const nextMajor = majors[(majors.indexOf(player.majorName) + 1) % majors.length];
+            player.majorName = nextMajor;
+            player.intellect += 5;
+            createBurstParticles(player.x, player.y, '#0d9488', 35, 220);
+            showToast(`🎓 대학본부동에서 [${nextMajor}] 전공으로 공식 배정되었습니다! (지식+5)`);
+            updateUI();
+            const targetPoi = activeIndoorPoi || currentClosestPoi;
+            if (targetPoi) openPoiModal(targetPoi, selectedNpcIndexInModal);
+        }
+
+        function doEngineeringLabWork() {
+            if (player.mp < 20) {
+                showToast('실험을 진행할 집중력(20)이 부족합니다! 커피를 마시거나 휴식하세요.');
+                return;
+            }
+            player.mp -= 20;
+            player.labReportCount++;
+            player.intellect += 4;
+            player.gold += 1500;
+            gainExp(90);
+
+            if (player.questStep === 3) {
+                player.questProgress++;
+                checkMainQuestCompletion();
+            }
+
+            createBurstParticles(player.x, player.y, '#8b5cf6', 30, 200);
+            showToast(`🔬 공학·의생명·항공 캡스톤 실습 완료! (전공지식+4, 연구비 +1,500P, +90 EXP)`);
+            updateUI();
+            closePoiModal();
+        }
+
+        function celebrateCampusFestival() {
+            closePoiModal();
+            player.hp = player.maxHp;
+            player.mp = player.maxMp;
+            player.charm += 10;
+            player.artSense += 10;
+            player.title = '신라 캠퍼스 스타';
+            gainExp(250);
+
+            const colors = ['#f43f5e', '#facc15', '#38bdf8', '#a855f7', '#4ade80'];
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    const fx = player.x + (Math.random() - 0.5) * 220;
+                    const fy = player.y - 40 + (Math.random() - 0.5) * 140;
+                    createBurstParticles(fx, fy, colors[i % colors.length], 40, 260);
+                }, i * 250);
+            }
+
+            if (player.questStep === 4) {
+                player.questProgress = 1;
+                checkMainQuestCompletion();
+            } else {
+                showToast('🎆 남쪽 대운동장 밤하늘에 신라 대동제 불꽃놀이가 펼쳐집니다! (친화+10, 감성+10, +250 EXP)');
+            }
+            updateUI();
+        }
+
+        function openWorldMapModal() {
+            const list = document.getElementById('warpGridList');
+            list.innerHTML = POIS.map(p => `
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between hover:border-blue-400 transition-colors gap-2">
+                    <div class="flex items-center gap-2.5 overflow-hidden">
+                        <span class="text-2xl shrink-0">${p.icon}</span>
+                        <div class="overflow-hidden">
+                            <div class="font-bold text-xs text-slate-800 truncate">${p.name}</div>
+                            <div class="text-[10px] text-slate-500 truncate">${p.subName}</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                        <button onclick="warpToPoi('${p.id}', false)" class="campus-btn px-2.5 py-1.5 rounded-lg text-[11px] font-bold">🚌 정문앞</button>
+                        <button onclick="warpToPoi('${p.id}', true)" class="bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1.5 rounded-lg text-[11px] font-bold">🚪 실내입장</button>
+                    </div>
+                </div>
+            `).join('');
+            const modal = document.getElementById('worldMapModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeWorldMapModal() {
+            const modal = document.getElementById('worldMapModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function warpToPoi(poiId, enterInside = false) {
+            const target = POIS.find(p => p.id === poiId);
+            if (!target) return;
+            closeWorldMapModal();
+
+            if (gameScene === 'indoor') {
+                exitIndoorMap();
+            }
+
+            player.x = target.x;
+            player.y = target.y + 68;
+            resolveTreeCollisions(player, player.radius);
+            player.facing = 'up';
+
+            if (enterInside) {
+                enterIndoorMap(target);
+            } else {
+                createBurstParticles(player.x, player.y, '#3b82f6', 30, 200);
+                showToast(`🚌 캠퍼스 순환 셔틀을 타고 [${target.name}] 앞으로 이동했습니다.`);
+            }
+        }
+
+        function openInventoryModal() {
+            document.getElementById('invLv').textContent = `${player.level}학년`;
+            document.getElementById('invJob').textContent = player.title;
+            document.getElementById('invInt').textContent = player.intellect;
+            document.getElementById('invArt').textContent = player.artSense;
+            document.getElementById('invCharm').textContent = player.charm;
+            document.getElementById('invFit').textContent = player.fitness;
+
+            document.getElementById('invMajorName').textContent = player.majorName;
+            document.getElementById('invClubName').textContent = player.clubName;
+            document.getElementById('invGearName').textContent = player.gearName;
+
+            document.getElementById('inventoryItemsList').innerHTML = `
+                <div class="p-2.5 bg-white rounded-lg border border-slate-200 flex justify-between items-center">
+                    <span>☕ 차차커피 쿠폰</span><b>${player.coffees}잔</b>
+                </div>
+                <div class="p-2.5 bg-white rounded-lg border border-slate-200 flex justify-between items-center">
+                    <span>🔬 실험 실습 이수</span><b>${player.labReportCount}회</b>
+                </div>
+                <div class="p-2.5 bg-white rounded-lg border border-slate-200 flex justify-between items-center">
+                    <span>👋 학우 인사 교류</span><b>${player.greetCount}회</b>
+                </div>
+                <div class="p-2.5 bg-white rounded-lg border border-slate-200 flex justify-between items-center">
+                    <span>📸 캠퍼스 스냅샷</span><b>${player.photoCount}장</b>
+                </div>
+            `;
+
+            const modal = document.getElementById('inventoryModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeInventoryModal() {
+            const modal = document.getElementById('inventoryModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function openHelpModal() {
+            const modal = document.getElementById('helpModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeHelpModal() {
+            const modal = document.getElementById('helpModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function saveGameData(showNotification = true) {
+            try {
+                const saveX = gameScene === 'indoor' ? savedOutdoorPos.x : player.x;
+                const saveY = gameScene === 'indoor' ? savedOutdoorPos.y : player.y;
+                const saveData = {
+                    x: saveX,
+                    y: saveY,
+                    level: player.level,
+                    exp: player.exp,
+                    maxExp: player.maxExp,
+                    hp: player.hp,
+                    maxHp: player.maxHp,
+                    mp: player.mp,
+                    maxMp: player.maxMp,
+                    intellect: player.intellect,
+                    artSense: player.artSense,
+                    charm: player.charm,
+                    fitness: player.fitness,
+                    gold: player.gold,
+                    coffees: player.coffees,
+                    majorName: player.majorName,
+                    clubName: player.clubName,
+                    gearName: player.gearName,
+                    title: player.title,
+                    labReportCount: player.labReportCount,
+                    photoCount: player.photoCount,
+                    greetCount: player.greetCount,
+                    questStep: player.questStep,
+                    questProgress: player.questProgress
+                };
+                localStorage.setItem('silla_campus_hd2d_v3_save', JSON.stringify(saveData));
+                if (showNotification) showToast('💾 모험의 서(캠퍼스 일지)에 현재 기록이 안전하게 저장되었습니다!');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function loadGameData() {
+            try {
+                const raw = localStorage.getItem('silla_campus_hd2d_v3_save');
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                Object.assign(player, data);
+                resolveTreeCollisions(player, player.radius);
+                showToast('🎓 이전 캠퍼스 라이프 기록을 불러왔습니다.');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function resetGameData() {
+            localStorage.removeItem('silla_campus_hd2d_v3_save');
+            location.reload();
+        }
+
+        function createBurstParticles(x, y, color, count, speed) {
+            for (let i = 0; i < count; i++) {
+                const ang = Math.random() * Math.PI * 2;
+                const spd = 25 + Math.random() * speed;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(ang) * spd,
+                    vy: Math.sin(ang) * spd,
+                    life: 0.4 + Math.random() * 0.35,
+                    maxLife: 0.75,
+                    color,
+                    size: 3 + Math.random() * 4
+                });
+            }
+        }
+
+        function addFloatingText(x, y, text, color = '#fde047', size = 14) {
+            floatingTexts.push({
+                x, y,
+                text,
+                color,
+                size,
+                life: 1.15
+            });
+        }
+
+        let toastTimeout = null;
+        function showToast(msg) {
+            const el = document.getElementById('toastMessage');
+            el.firstElementChild.textContent = msg;
+            el.style.opacity = '1';
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                el.style.opacity = '0';
+            }, 3200);
+        }
+
+        function updateUI() {
+            document.getElementById('uiLevel').textContent = player.level;
+            document.getElementById('uiGold').textContent = player.gold.toLocaleString();
+            document.getElementById('uiInt').textContent = player.intellect;
+            document.getElementById('uiCharm').textContent = player.charm;
+            document.getElementById('playerTitleBadge').textContent = player.title;
+
+            document.getElementById('uiHpText').textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
+            document.getElementById('uiHpBar').style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
+
+            document.getElementById('uiMpText').textContent = `${Math.ceil(player.mp)} / ${player.maxMp}`;
+            document.getElementById('uiMpBar').style.width = `${Math.max(0, (player.mp / player.maxMp) * 100)}%`;
+
+            document.getElementById('uiExpText').textContent = `${player.exp} / ${player.maxExp}`;
+            document.getElementById('uiExpBar').style.width = `${Math.min(100, (player.exp / player.maxExp) * 100)}%`;
+
+            document.getElementById('coffeeCountBadge').textContent = `x${player.coffees}`;
+
+            const q = MAIN_QUESTS[player.questStep] || MAIN_QUESTS[MAIN_QUESTS.length - 1];
+            document.getElementById('questProgressBadge').textContent = `일정 ${Math.min(player.questStep + 1, 5)}/5`;
+            document.getElementById('questTitle').textContent = q.title;
+            document.getElementById('questDesc').textContent = q.desc;
+
+            const targetPoi = POIS.find(p => p.id === q.targetPoi);
+            document.getElementById('questTargetText').textContent =
+                q.type === 'complete'
+                    ? '모든 필수 학사일정 수료!'
+                    : `목표: ${targetPoi ? targetPoi.name.split(' ')[0] : ''} (${player.questProgress}/${q.goal})`;
+
+            const subBox = document.getElementById('subQuestBox');
+            if (player.subQuestActive) {
+                subBox.classList.remove('hidden');
+                document.getElementById('subQuestCount').textContent = `${player.subQuestProgress}/3`;
+            } else {
+                subBox.classList.add('hidden');
+            }
+        }
+
+        function updateGame(dt) {
+            for (let s = 1; s <= 4; s++) {
+                if (actionCooldowns[s] > 0) {
+                    actionCooldowns[s] = Math.max(0, actionCooldowns[s] - dt);
+                    const overlay = document.getElementById(`cdOverlay${s}`);
+                    if (actionCooldowns[s] > 0) {
+                        overlay.classList.remove('hidden');
+                        overlay.textContent = actionCooldowns[s].toFixed(1);
+                    } else {
+                        overlay.classList.add('hidden');
+                    }
+                }
+            }
+
+            if (player.sprintTimer > 0) player.sprintTimer = Math.max(0, player.sprintTimer - dt);
+            if (player.greetAnimTimer > 0) player.greetAnimTimer = Math.max(0, player.greetAnimTimer - dt);
+
+            player.mp = Math.min(player.maxMp, player.mp + 3.0 * dt);
+            player.hp = Math.min(player.maxHp, player.hp + 1.5 * dt);
+
+            let moveX = 0;
+            let moveY = 0;
+            if (keys['w'] || keys['arrowup']) moveY -= 1;
+            if (keys['s'] || keys['arrowdown']) moveY += 1;
+            if (keys['a'] || keys['arrowleft']) moveX -= 1;
+            if (keys['d'] || keys['arrowright']) moveX += 1;
+
+            const currentSpeed = player.sprintTimer > 0 ? player.speed * 1.45 : player.speed;
+
+            if (moveX !== 0 || moveY !== 0) {
+                const len = Math.hypot(moveX, moveY);
+                moveX /= len;
+                moveY /= len;
+                player.dirX = moveX;
+                player.dirY = moveY;
+                player.isMoving = true;
+                player.walkCycle += dt * (player.sprintTimer > 0 ? 18 : 12);
+
+                if (Math.abs(moveX) > Math.abs(moveY)) {
+                    player.facing = moveX > 0 ? 'right' : 'left';
+                } else {
+                    player.facing = moveY > 0 ? 'down' : 'up';
+                }
+
+                player.x += moveX * currentSpeed * dt;
+                player.y += moveY * currentSpeed * dt;
+
+                if (gameScene === 'indoor') {
+                    resolveIndoorCollisions(player, player.radius);
+                } else {
+                    player.x = Math.max(60, Math.min(WORLD_W - 60, player.x));
+                    player.y = Math.max(60, Math.min(WORLD_H - 60, player.y));
+                    resolveTreeCollisions(player, player.radius);
+                }
+            } else {
+                player.isMoving = false;
+            }
+
+            if (gameScene === 'indoor') {
+                const targetCamX = ROOM_W / 2 - canvas.width / 2 + (player.x - ROOM_W / 2) * 0.35;
+                const targetCamY = ROOM_H / 2 - canvas.height / 2 + (player.y - ROOM_H / 2) * 0.35;
+                camera.x += (targetCamX - camera.x) * 0.18;
+                camera.y += (targetCamY - camera.y) * 0.18;
+            } else {
+                const targetCamX = player.x - canvas.width / 2;
+                const targetCamY = player.y - canvas.height / 2;
+                camera.x += (targetCamX - camera.x) * 0.14;
+                camera.y += (targetCamY - camera.y) * 0.14;
+            }
+
+            const banner = document.getElementById('interactBanner');
+
+            if (gameScene === 'indoor' && activeIndoorPoi) {
+                currentClosestIndoorNpc = null;
+                let minDist = 88;
+                indoorNpcs.forEach(inpc => {
+                    const d = Math.hypot(player.x - inpc.x, player.y - inpc.y);
+                    if (d < minDist) {
+                        minDist = d;
+                        currentClosestIndoorNpc = inpc;
+                    }
+                });
+
+                nearIndoorExit = (Math.abs(player.x - ROOM_W / 2) < 62 && player.y > ROOM_H - 78);
+
+                if (Math.abs(player.x - ROOM_W / 2) < 48 && player.y >= ROOM_H - 54 && keys['s']) {
+                    exitIndoorMap();
+                    return;
+                }
+
+                if (currentClosestIndoorNpc) {
+                    banner.classList.remove('hidden');
+                    banner.classList.add('flex');
+                    document.getElementById('interactIcon').textContent = currentClosestIndoorNpc.icon;
+                    document.getElementById('interactName').textContent = `${currentClosestIndoorNpc.name} (${currentClosestIndoorNpc.role})`;
+                    document.getElementById('interactSub').textContent = '▶ 터치 또는 [Space]/[F] 키를 눌러 대화 및 활동하기';
+                } else if (nearIndoorExit) {
+                    banner.classList.remove('hidden');
+                    banner.classList.add('flex');
+                    document.getElementById('interactIcon').textContent = '🚪';
+                    document.getElementById('interactName').textContent = '건물 출구 (야외 캠퍼스로 나가기)';
+                    document.getElementById('interactSub').textContent = '▶ 터치 또는 [F] 키를 눌러 밖으로 나가기';
+                } else {
+                    banner.classList.add('hidden');
+                    banner.classList.remove('flex');
+                }
+                document.getElementById('currentZoneText').textContent = `${activeIndoorPoi.name} (실내)`;
+            } else {
+                currentClosestPoi = null;
+                let closestDist = 9999;
+                for (const poi of POIS) {
+                    const d = Math.hypot(player.x - poi.x, player.y - poi.y);
+                    if (d < poi.radius + 35 && d < closestDist) {
+                        closestDist = d;
+                        currentClosestPoi = poi;
+                    }
+                }
+
+                currentClosestNpc = null;
+                let closestNpcDist = 95;
+                for (const npc of campusNpcs) {
+                    const d = Math.hypot(player.x - npc.x, player.y - npc.y);
+                    if (d < closestNpcDist) {
+                        closestNpcDist = d;
+                        currentClosestNpc = npc;
+                    }
+                }
+
+                if (currentClosestPoi) {
+                    banner.classList.remove('hidden');
+                    banner.classList.add('flex');
+                    document.getElementById('interactIcon').textContent = currentClosestPoi.icon;
+                    document.getElementById('interactName').textContent = currentClosestPoi.name;
+                    document.getElementById('interactSub').textContent = `▶ 터치 또는 [F] 키로 건물 실내 입장 (${currentClosestPoi.npcs.length}명 상주)`;
+                    document.getElementById('currentZoneText').textContent = currentClosestPoi.name;
+                } else if (currentClosestNpc) {
+                    banner.classList.remove('hidden');
+                    banner.classList.add('flex');
+                    document.getElementById('interactIcon').textContent = currentClosestNpc.icon;
+                    document.getElementById('interactName').textContent = currentClosestNpc.name;
+                    document.getElementById('interactSub').textContent = '▶ 터치 또는 [Space] 키로 도트 NPC와 대화하기';
+                    document.getElementById('currentZoneText').textContent = '신라대학교 캠퍼스 산책로';
+                } else {
+                    banner.classList.add('hidden');
+                    banner.classList.remove('flex');
+                    document.getElementById('currentZoneText').textContent = '신라대학교 캠퍼스 산책로';
+                }
+
+                if (activeGuideTarget && Math.hypot(player.x - activeGuideTarget.x, player.y - activeGuideTarget.y) < 120) {
+                    activeGuideTarget = null;
+                }
+
+                campusNpcs.forEach(npc => {
+                    if (npc.greetCooldown > 0) npc.greetCooldown = Math.max(0, npc.greetCooldown - dt);
+                    if (npc.bubbleTimer > 0) {
+                        npc.bubbleTimer -= dt;
+                        if (npc.bubbleTimer <= 0) {
+                            npc.currentBubble = '';
+                            npc.isPaused = false;
+                        }
+                    }
+
+                    const distToPlayer = Math.hypot(player.x - npc.x, player.y - npc.y);
+                    if (distToPlayer < 65) {
+                        npc.isMoving = false;
+                        if (!npc.currentBubble && Math.random() < 0.02) {
+                            npc.currentBubble = npc.speeches[Math.floor(Math.random() * npc.speeches.length)];
+                            npc.bubbleTimer = 3.5;
+                        }
+                        return;
+                    }
+
+                    if (!npc.isPaused) {
+                        npc.wanderTimer -= dt;
+                        if (npc.wanderTimer <= 0) {
+                            npc.wanderTimer = 2.0 + Math.random() * 3.0;
+                            const distHome = Math.hypot(npc.homeX - npc.x, npc.homeY - npc.y);
+                            if (distHome > 160) {
+                                npc.wanderAngle = Math.atan2(npc.homeY - npc.y, npc.homeX - npc.x);
+                            } else {
+                                npc.wanderAngle = Math.random() * Math.PI * 2;
+                            }
+                        }
+                        const vx = Math.cos(npc.wanderAngle) * npc.speed;
+                        const vy = Math.sin(npc.wanderAngle) * npc.speed;
+                        const prevX = npc.x;
+                        const prevY = npc.y;
+                        npc.x += vx * dt;
+                        npc.y += vy * dt;
+
+                        resolveTreeCollisions(npc, npc.radius);
+                        if (Math.hypot(npc.x - (prevX + vx * dt), npc.y - (prevY + vy * dt)) > 0.5) {
+                            npc.wanderAngle += Math.PI * 0.6;
+                        }
+
+                        npc.isMoving = true;
+                        npc.walkCycle += dt * 9;
+
+                        if (Math.abs(vx) > Math.abs(vy)) {
+                            npc.facing = vx > 0 ? 'right' : 'left';
+                        } else {
+                            npc.facing = vy > 0 ? 'down' : 'up';
+                        }
+                    } else {
+                        npc.isMoving = false;
+                    }
+                });
+
+                ambientLeaves.forEach(lf => {
+                    lf.phase += dt * 2.5;
+                    lf.x += (lf.vx + Math.sin(lf.phase) * 12) * dt;
+                    lf.y += lf.vy * dt;
+                    if (lf.x > WORLD_W) lf.x = 0;
+                    if (lf.y > WORLD_H) lf.y = 0;
+                });
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const pt = particles[i];
+                pt.x += pt.vx * dt;
+                pt.y += pt.vy * dt;
+                pt.life -= dt;
+                if (pt.life <= 0) particles.splice(i, 1);
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y -= 28 * dt;
+                ft.life -= dt;
+                if (ft.life <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+
+        function drawIndoorScene() {
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(-Math.floor(camera.x), -Math.floor(camera.y));
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.fillRect(28, 28, ROOM_W, ROOM_H);
+
+            const theme = activeIndoorPoi ? activeIndoorPoi.roomTheme : 'classroom';
+            for (let ry = 80; ry < ROOM_H - 36; ry += 24) {
+                for (let rx = 48; rx < ROOM_W - 48; rx += 24) {
+                    const isEven = ((rx / 24) + (ry / 24)) % 2 === 0;
+                    if (theme === 'library' || theme === 'dorm') {
+                        ctx.fillStyle = isEven ? '#92400e' : '#78350f';
+                    } else if (theme === 'lab') {
+                        ctx.fillStyle = isEven ? '#e2e8f0' : '#cbd5e1';
+                    } else {
+                        ctx.fillStyle = isEven ? '#d6c5b3' : '#cbb69e';
+                    }
+                    ctx.fillRect(rx, ry, 24, 24);
+                    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(rx, ry, 24, 24);
+                }
+            }
+
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(48, 36, ROOM_W - 96, 62);
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(48, 86, ROOM_W - 96, 12);
+
+            [170, 610].forEach(wx => {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(wx - 38, 44, 76, 36);
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillRect(wx - 34, 48, 68, 28);
+                ctx.fillStyle = '#bae6fd';
+                ctx.fillRect(wx - 30, 50, 24, 24);
+                ctx.fillStyle = 'rgba(254, 240, 138, 0.14)';
+                ctx.beginPath();
+                ctx.moveTo(wx - 34, 98);
+                ctx.lineTo(wx + 34, 98);
+                ctx.lineTo(wx + 55, 165);
+                ctx.lineTo(wx - 55, 165);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            ctx.fillStyle = '#064e3b';
+            ctx.strokeStyle = '#b45309';
+            ctx.lineWidth = 4;
+            ctx.fillRect(ROOM_W / 2 - 135, 42, 270, 44);
+            ctx.strokeRect(ROOM_W / 2 - 135, 42, 270, 44);
+            ctx.fillStyle = '#fef08a';
+            ctx.font = 'bold 14px "Noto Sans KR", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${activeIndoorPoi ? activeIndoorPoi.icon : '🏫'} ${activeIndoorPoi ? activeIndoorPoi.name : ''} 실내`, ROOM_W / 2, 69);
+
+            ctx.fillStyle = 'rgba(30, 58, 138, 0.25)';
+            ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
+            ctx.lineWidth = 2;
+            ctx.fillRect(270, 200, 300, 240);
+            ctx.strokeRect(270, 200, 300, 240);
+
+            const exitX = ROOM_W / 2;
+            const exitY = ROOM_H - 54;
+            ctx.fillStyle = '#dc2626';
+            ctx.strokeStyle = '#fde047';
+            ctx.lineWidth = 2.5;
+            ctx.fillRect(exitX - 52, exitY - 14, 104, 28);
+            ctx.strokeRect(exitX - 52, exitY - 14, 104, 28);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+            ctx.fillText('🚪 EXIT (야외로 나가기)', exitX, exitY + 4);
+
+            const indoorRenderables = [];
+            indoorFurnitures.forEach(f => {
+                indoorRenderables.push({ y: f.y + f.h, type: 'furniture', obj: f });
+            });
+            indoorNpcs.forEach(inpc => {
+                indoorRenderables.push({ y: inpc.y, type: 'inpc', obj: inpc });
+            });
+            indoorRenderables.push({ y: player.y, type: 'player', obj: player });
+
+            indoorRenderables.sort((a, b) => a.y - b.y);
+
+            indoorRenderables.forEach(item => {
+                if (item.type === 'furniture') drawIndoorFurniture(item.obj);
+                else if (item.type === 'inpc') drawIndoorNpc(item.obj);
+                else if (item.type === 'player') drawPlayerCharacter();
+            });
+
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(45, 34, ROOM_W - 90, ROOM_H - 68);
+
+            particles.forEach(pt => {
+                ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+                ctx.fillStyle = pt.color;
+                ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+            });
+            ctx.globalAlpha = 1;
+
+            floatingTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.life);
+                ctx.font = `bold ${ft.size}px "Noto Sans KR", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 4;
+                ctx.strokeText(ft.text, ft.x, ft.y);
+                ctx.fillStyle = ft.color;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+
+            ctx.restore();
+            drawMinimap();
+        }
+
+        function drawIndoorFurniture(f) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+            ctx.fillRect(f.x + 4, f.y + 6, f.w, f.h);
+
+            if (f.type === 'bookshelf') {
+                ctx.fillStyle = '#451a03';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2;
+                ctx.fillRect(f.x, f.y, f.w, f.h);
+                ctx.strokeRect(f.x, f.y, f.w, f.h);
+                const bookColors = ['#ef4444', '#3b82f6', '#eab308', '#10b981', '#a855f7'];
+                for (let bx = f.x + 8; bx < f.x + f.w - 10; bx += 8) {
+                    ctx.fillStyle = bookColors[(bx / 8) % bookColors.length];
+                    ctx.fillRect(bx, f.y + 8, 5, 12);
+                    ctx.fillRect(bx, f.y + 24, 5, 12);
+                }
+            } else if (f.type === 'counter' || f.type === 'stage') {
+                ctx.fillStyle = f.color || '#78350f';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(f.x, f.y, f.w, f.h);
+                ctx.strokeRect(f.x, f.y, f.w, f.h);
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.fillRect(f.x + 4, f.y + 4, f.w - 8, 10);
+            } else if (f.type === 'bed') {
+                ctx.fillStyle = '#78350f';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2;
+                ctx.fillRect(f.x, f.y, f.w, f.h);
+                ctx.strokeRect(f.x, f.y, f.w, f.h);
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(f.x + 8, f.y + 8, 26, f.h - 16);
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillRect(f.x + 36, f.y + 6, f.w - 42, f.h - 12);
+            } else if (f.type === 'lab_bench') {
+                ctx.fillStyle = '#cbd5e1';
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(f.x, f.y, f.w, f.h);
+                ctx.strokeRect(f.x, f.y, f.w, f.h);
+                ctx.fillStyle = '#0284c7';
+                ctx.fillRect(f.x + 20, f.y + 10, 28, 18);
+                ctx.fillStyle = '#10b981';
+                ctx.beginPath();
+                ctx.arc(f.x + f.w - 35, f.y + 22, 8, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = '#a16207';
+                ctx.strokeStyle = '#451a03';
+                ctx.lineWidth = 2;
+                ctx.fillRect(f.x, f.y, f.w, f.h);
+                ctx.strokeRect(f.x, f.y, f.w, f.h);
+                ctx.fillStyle = '#ca8a04';
+                ctx.fillRect(f.x + 4, f.y + 4, f.w - 8, f.h - 14);
+            }
+
+            if (f.label) {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 3;
+                ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.strokeText(f.label, f.x + f.w / 2, f.y + f.h / 2 + 4);
+                ctx.fillText(f.label, f.x + f.w / 2, f.y + f.h / 2 + 4);
+            }
+            ctx.restore();
+        }
+
+        function drawIndoorNpc(inpc) {
+            drawDQPixelCharacter(ctx, inpc.x, inpc.y, {
+                isPlayer: false,
+                hair: inpc.hair,
+                top: inpc.top,
+                bottom: inpc.bottom,
+                acc: inpc.acc,
+                facing: inpc.facing,
+                walkCycle: inpc.walkCycle,
+                isMoving: inpc.isMoving
+            });
+
+            ctx.save();
+            const bounce = Math.sin(performance.now() * 0.006) * 3;
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('💬', inpc.x, inpc.y - 46 + bounce);
+
+            ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+            ctx.strokeStyle = '#090d16';
+            ctx.lineWidth = 3.5;
+            ctx.strokeText(`${inpc.icon} ${inpc.name}`, inpc.x, inpc.y - 31);
+            ctx.fillStyle = '#fde047';
+            ctx.fillText(`${inpc.icon} ${inpc.name}`, inpc.x, inpc.y - 31);
+            ctx.restore();
+        }
+
+        function drawGame() {
+            if (gameScene === 'indoor') {
+                drawIndoorScene();
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(-Math.floor(camera.x), -Math.floor(camera.y));
+
+            ctx.drawImage(worldBgCanvas, 0, 0);
+
+            POIS.forEach(poi => {
+                drawPoiGroundLayer(poi);
+            });
+
+            mountains.forEach(m => {
+                if (m.x + m.size < camera.x || m.x - m.size > camera.x + canvas.width ||
+                    m.y + m.size < camera.y || m.y - m.size > camera.y + canvas.height) return;
+                drawDQCliffMountain(m);
+            });
+
+            const currentQ = MAIN_QUESTS[player.questStep];
+            const guideDest = activeGuideTarget || (currentQ ? POIS.find(p => p.id === currentQ.targetPoi) : null);
+            if (guideDest) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
+                ctx.lineWidth = 4;
+                ctx.setLineDash([8, 8]);
+                ctx.beginPath();
+                ctx.moveTo(player.x, player.y);
+                ctx.lineTo(guideDest.x, guideDest.y);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            const renderables = [];
+
+            POIS.forEach(poi => {
+                renderables.push({ y: poi.y + 20, type: 'poi', obj: poi });
+            });
+
+            campusProps.forEach(prop => {
+                if (prop.x + 40 < camera.x || prop.x - 40 > camera.x + canvas.width ||
+                    prop.y + 40 < camera.y || prop.y - 40 > camera.y + canvas.height) return;
+                renderables.push({ y: prop.y, type: 'prop', obj: prop });
+            });
+
+            trees.forEach(t => {
+                if (t.x + 60 < camera.x || t.x - 60 > camera.x + canvas.width ||
+                    t.y + 80 < camera.y || t.y - 80 > camera.y + canvas.height) return;
+                renderables.push({ y: t.y, type: 'tree', obj: t });
+            });
+
+            campusNpcs.forEach(npc => {
+                if (npc.x + 80 < camera.x || npc.x - 80 > camera.x + canvas.width ||
+                    npc.y + 80 < camera.y || npc.y - 80 > camera.y + canvas.height) return;
+                renderables.push({ y: npc.y, type: 'npc', obj: npc });
+            });
+
+            renderables.push({ y: player.y, type: 'player', obj: player });
+
+            renderables.sort((a, b) => a.y - b.y);
+
+            renderables.forEach(item => {
+                if (item.type === 'tree') drawDQTree(item.obj);
+                else if (item.type === 'prop') drawCampusProp(item.obj);
+                else if (item.type === 'poi') drawRealisticBuilding(item.obj);
+                else if (item.type === 'npc') drawNpcWithLabel(item.obj);
+                else if (item.type === 'player') drawPlayerCharacter();
+            });
+
+            ambientLeaves.forEach(lf => {
+                if (lf.x < camera.x || lf.x > camera.x + canvas.width ||
+                    lf.y < camera.y || lf.y > camera.y + canvas.height) return;
+                ctx.fillStyle = lf.color;
+                ctx.fillRect(lf.x, lf.y, lf.size, lf.size * 0.7);
+            });
+
+            particles.forEach(pt => {
+                ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+                ctx.fillStyle = pt.color;
+                ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+            });
+            ctx.globalAlpha = 1;
+
+            floatingTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.life);
+                ctx.font = `bold ${ft.size}px "Noto Sans KR", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 4;
+                ctx.strokeText(ft.text, ft.x, ft.y);
+                ctx.fillStyle = ft.color;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+
+            ctx.restore();
+
+            drawHD2DPostProcessing();
+            drawMinimap();
+        }
+
+        function drawDQTree(t) {
+            const sprite = treeSprites[t.type] || treeSprites.oak;
+            if (!sprite) return;
+            const w = 96 * t.scale;
+            const h = 112 * t.scale;
+            ctx.drawImage(sprite, Math.floor(t.x - w / 2), Math.floor(t.y - h + 14), Math.floor(w), Math.floor(h));
+        }
+
+        function drawDQCliffMountain(m) {
+            const { x, y, size } = m;
+            ctx.save();
+
+            ctx.fillStyle = 'rgba(15, 25, 10, 0.38)';
+            ctx.beginPath();
+            ctx.ellipse(x + 8, y + size * 0.45, size * 0.95, size * 0.35, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            for (let tier = 0; tier < 2; tier++) {
+                const s = size * (1 - tier * 0.35);
+                const ty = y - tier * (size * 0.32);
+
+                ctx.fillStyle = '#1e293b';
+                ctx.beginPath();
+                ctx.roundRect(x - s * 0.85 - 2, ty - s * 0.5 - 2, s * 1.7 + 4, s * 0.85 + 4, 14);
+                ctx.fill();
+
+                ctx.fillStyle = '#475569';
+                ctx.beginPath();
+                ctx.roundRect(x - s * 0.85, ty - s * 0.5, s * 1.7, s * 0.85, 12);
+                ctx.fill();
+
+                ctx.fillStyle = '#334155';
+                for (let rx = -s * 0.7; rx <= s * 0.7; rx += 14) {
+                    ctx.fillRect(x + rx, ty - s * 0.3, 4, s * 0.62);
+                }
+
+                ctx.fillStyle = '#3f6212';
+                ctx.beginPath();
+                ctx.roundRect(x - s * 0.85, ty - s * 0.5, s * 1.7, s * 0.38, 12);
+                ctx.fill();
+
+                ctx.fillStyle = '#65a30d';
+                ctx.beginPath();
+                ctx.roundRect(x - s * 0.78, ty - s * 0.46, s * 1.56, s * 0.22, 8);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        function drawCampusProp(prop) {
+            ctx.save();
+            if (prop.type === 'lamp') {
+                ctx.fillStyle = 'rgba(0,0,0,0.28)';
+                ctx.beginPath();
+                ctx.ellipse(prop.x + 4, prop.y + 2, 9, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(prop.x - 3, prop.y - 4, 6, 6);
+                ctx.fillRect(prop.x - 2, prop.y - 38, 4, 36);
+                ctx.fillRect(prop.x - 6, prop.y - 38, 12, 3);
+                const glow = ctx.createRadialGradient(prop.x, prop.y - 40, 2, prop.x, prop.y - 40, 22);
+                glow.addColorStop(0, 'rgba(254, 240, 138, 0.95)');
+                glow.addColorStop(0.4, 'rgba(250, 204, 21, 0.35)');
+                glow.addColorStop(1, 'rgba(250, 204, 21, 0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(prop.x, prop.y - 40, 22, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(prop.x - 3, prop.y - 43, 6, 6);
+            } else if (prop.type === 'bench') {
+                ctx.fillStyle = 'rgba(0,0,0,0.28)';
+                ctx.fillRect(prop.x - 14, prop.y + 2, 28, 6);
+                ctx.fillStyle = '#451a03';
+                ctx.fillRect(prop.x - 14, prop.y - 8, 28, 9);
+                ctx.fillStyle = '#92400e';
+                ctx.fillRect(prop.x - 13, prop.y - 7, 26, 3);
+                ctx.fillStyle = '#b45309';
+                ctx.fillRect(prop.x - 13, prop.y - 3, 26, 3);
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(prop.x - 11, prop.y - 8, 3, 11);
+                ctx.fillRect(prop.x + 8, prop.y - 8, 3, 11);
+            } else if (prop.type === 'flowerbed') {
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(prop.x - 14, prop.y - 6, 28, 12);
+                ctx.strokeStyle = '#451a03';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(prop.x - 14, prop.y - 6, 28, 12);
+                ctx.fillStyle = '#15803d';
+                ctx.fillRect(prop.x - 12, prop.y - 8, 24, 8);
+                const colors = ['#f43f5e', '#facc15', '#a855f7', '#38bdf8'];
+                for (let i = 0; i < 4; i++) {
+                    ctx.fillStyle = colors[i];
+                    ctx.fillRect(prop.x - 10 + i * 6, prop.y - 7 + (i % 2) * 2, 4, 4);
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawPoiGroundLayer(poi) {
+            const { x, y, id } = poi;
+            const time = performance.now() * 0.003;
+            ctx.save();
+
+            if (id === 'main_gate') {
+                const pondX = x + 150;
+                const pondY = y - 80;
+                const pondGrad = ctx.createRadialGradient(pondX, pondY, 15, pondX, pondY, 95);
+                pondGrad.addColorStop(0, '#1e40af');
+                pondGrad.addColorStop(0.65, '#0284c7');
+                pondGrad.addColorStop(1, '#38bdf8');
+
+                ctx.fillStyle = pondGrad;
+                ctx.beginPath();
+                ctx.roundRect(pondX - 75, pondY - 85, 150, 165, 45);
+                ctx.fill();
+                ctx.strokeStyle = '#57534e';
+                ctx.lineWidth = 5;
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                for (let i = 0; i < 6; i++) {
+                    ctx.fillRect(pondX - 45 + i * 16 + Math.sin(time + i) * 4, pondY - 40 + (i % 3) * 35, 10, 2);
+                }
+                ctx.fillStyle = '#bae6fd';
+                ctx.font = 'bold 13px "Noto Sans KR", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('💧 덕포지', pondX, pondY + 5);
+            } else if (id === 'arena') {
+                ctx.fillStyle = '#e7d8c1';
+                ctx.beginPath();
+                ctx.ellipse(x, y - 30, 175, 130, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 6;
+                ctx.strokeStyle = '#a8a29e';
+                ctx.stroke();
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x - 105, y - 90, 210, 120);
+                ctx.beginPath();
+                ctx.arc(x, y - 30, 22, 0, Math.PI * 2);
+                ctx.stroke();
+
+                const tx = x;
+                const ty = y + 175;
+                ctx.fillStyle = '#d6bfa3';
+                ctx.fillRect(tx - 70, ty - 55, 140, 110);
+                ctx.strokeStyle = '#78716c';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(tx - 70, ty - 55, 140, 110);
+
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(tx - 55, ty - 42, 46, 84);
+                ctx.strokeRect(tx + 9, ty - 42, 46, 84);
+                ctx.fillStyle = '#44403c';
+                ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('🎾 테니스장', tx, ty + 4);
+            } else if (id === 'bio_eng_air') {
+                ctx.save();
+                ctx.translate(x - 45, y + 145);
+                ctx.rotate(-0.55);
+                ctx.fillStyle = '#15803d';
+                ctx.fillRect(-55, -75, 110, 150);
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-55, -75, 110, 150);
+                ctx.beginPath();
+                ctx.moveTo(-55, 0);
+                ctx.lineTo(55, 0);
+                ctx.stroke();
+                ctx.restore();
+            } else if (id === 'south_stadium') {
+                ctx.save();
+                ctx.translate(x + 35, y + 10);
+                ctx.rotate(-0.42);
+
+                ctx.fillStyle = '#94a3b8';
+                ctx.beginPath();
+                ctx.roundRect(-125, -185, 250, 370, 120);
+                ctx.fill();
+
+                ctx.fillStyle = '#c2410c';
+                ctx.beginPath();
+                ctx.roundRect(-110, -170, 220, 340, 105);
+                ctx.fill();
+                ctx.strokeStyle = '#f8fafc';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = '#15803d';
+                ctx.fillRect(-72, -110, 144, 220);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-72, -110, 144, 220);
+                ctx.beginPath();
+                ctx.moveTo(-72, 0);
+                ctx.lineTo(72, 0);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(0, 0, 24, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(92, -45, 26, 95);
+                ctx.strokeStyle = '#334155';
+                ctx.strokeRect(92, -45, 26, 95);
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function drawRealisticBuilding(poi) {
+            const { x, y, id } = poi;
+            const time = performance.now() * 0.002;
+
+            ctx.save();
+
+            function drawWindow(wx, wy, w, h) {
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(wx - 1, wy - 1, w + 2, h + 2);
+                ctx.fillStyle = '#0284c7';
+                ctx.fillRect(wx, wy, w, h);
+                ctx.fillStyle = '#7dd3fc';
+                ctx.fillRect(wx + 1, wy + 1, w * 0.45, h * 0.45);
+            }
+
+            if (id === 'art_museum') {
+                ctx.fillStyle = 'rgba(0,0,0,0.32)';
+                ctx.fillRect(x - 140, y - 130, 72, 115);
+                ctx.fillStyle = '#e2e8f0';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 144, y - 135, 72, 115);
+                ctx.strokeRect(x - 144, y - 135, 72, 115);
+                ctx.fillStyle = '#16a34a';
+                ctx.fillRect(x - 138, y - 129, 60, 103);
+
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 46;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(x - 110, y + 60);
+                ctx.quadraticCurveTo(x - 10, y + 40, x + 35, y - 95);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#f8fafc';
+                ctx.lineWidth = 40;
+                ctx.beginPath();
+                ctx.moveTo(x - 110, y + 60);
+                ctx.quadraticCurveTo(x - 10, y + 40, x + 35, y - 95);
+                ctx.stroke();
+
+                ctx.fillStyle = '#f1f5f9';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(x - 115, y + 62, 32, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#94a3b8';
+                ctx.beginPath();
+                ctx.arc(x - 115, y + 62, 16, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (id === 'intl_edu') {
+                ctx.fillStyle = 'rgba(0,0,0,0.34)';
+                ctx.fillRect(x - 95, y - 80, 190, 130);
+
+                ctx.fillStyle = '#f1f5f9';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 95, y - 85, 180, 42);
+                ctx.strokeRect(x - 95, y - 85, 180, 42);
+                ctx.fillRect(x + 40, y - 45, 45, 85);
+                ctx.strokeRect(x + 40, y - 45, 45, 85);
+                ctx.fillRect(x - 85, y + 5, 170, 42);
+                ctx.strokeRect(x - 85, y + 5, 170, 42);
+
+                ctx.fillStyle = '#0284c7';
+                ctx.fillRect(x - 70, y + 36, 48, 11);
+                ctx.fillStyle = '#f97316';
+                ctx.fillRect(x - 22, y + 36, 48, 11);
+            } else if (id === 'humanities') {
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fillRect(x - 65, y - 105, 165, 165);
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 60, y - 110, 56, 150);
+                ctx.strokeRect(x - 60, y - 110, 56, 150);
+                ctx.fillRect(x - 60, y + 5, 145, 46);
+                ctx.strokeRect(x - 60, y + 5, 145, 46);
+
+                ctx.beginPath();
+                ctx.arc(x + 105, y + 20, 24, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                for (let wy = y - 95; wy < y + 25; wy += 20) {
+                    drawWindow(x - 48, wy, 14, 11);
+                    drawWindow(x - 26, wy, 14, 11);
+                }
+
+                ctx.fillStyle = '#ea580c';
+                ctx.fillRect(x - 55, y - 8, 52, 14);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 9px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('☕ 차차커피코', x - 29, y + 2);
+            } else if (id === 'hq_gym') {
+                ctx.fillStyle = '#94a3b8';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 115, y - 155, 76, 105);
+                ctx.strokeRect(x - 115, y - 155, 76, 105);
+                ctx.fillStyle = '#cbd5e1';
+                ctx.fillRect(x - 105, y - 145, 56, 85);
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.fillRect(x - 105, y - 35, 85, 62);
+                ctx.strokeRect(x - 105, y - 35, 85, 62);
+                ctx.fillStyle = '#0f766e';
+                ctx.fillRect(x - 98, y - 28, 71, 48);
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(x - 10, y - 15, 115, 52);
+                ctx.strokeRect(x - 10, y - 15, 115, 52);
+                for (let wx = x; wx < x + 95; wx += 20) {
+                    drawWindow(wx, y - 5, 12, 12);
+                    drawWindow(wx, y + 14, 12, 12);
+                }
+            } else if (id === 'globaltown') {
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.fillRect(x - 165, y - 20, 88, 46);
+                ctx.strokeRect(x - 165, y - 20, 88, 46);
+
+                ctx.fillStyle = '#d6c5b3';
+                ctx.fillRect(x - 35, y - 75, 105, 70);
+                ctx.strokeRect(x - 35, y - 75, 105, 70);
+
+                ctx.fillStyle = '#0284c7';
+                ctx.fillRect(x - 28, y - 68, 91, 20);
+
+                ctx.fillStyle = '#e5dccb';
+                ctx.fillRect(x - 65, y + 15, 110, 46);
+                ctx.strokeRect(x - 65, y + 15, 110, 46);
+
+                for (let wx = x - 55; wx <= x + 25; wx += 18) {
+                    drawWindow(wx, y + 25, 10, 12);
+                }
+            } else if (id === 'education') {
+                ctx.fillStyle = 'rgba(0,0,0,0.32)';
+                ctx.fillRect(x - 85, y - 35, 175, 70);
+
+                ctx.fillStyle = '#f1f5f9';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 85, y - 20, 95, 48);
+                ctx.strokeRect(x - 85, y - 20, 95, 48);
+                ctx.fillRect(x + 5, y - 42, 85, 48);
+                ctx.strokeRect(x + 5, y - 42, 85, 48);
+
+                for (let c = -75; c <= -5; c += 20) drawWindow(x + c, y - 8, 12, 12);
+                for (let c = 15; c <= 75; c += 20) drawWindow(x + c, y - 30, 12, 12);
+            } else if (id === 'commerce') {
+                ctx.fillStyle = 'rgba(0,0,0,0.34)';
+                ctx.fillRect(x - 95, y - 26, 195, 60);
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 95, y - 32, 175, 54);
+                ctx.strokeRect(x - 95, y - 32, 175, 54);
+
+                for (let c = -82; c <= 55; c += 20) {
+                    drawWindow(x + c, y - 22, 13, 11);
+                    drawWindow(x + c, y - 4, 13, 11);
+                }
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.beginPath();
+                ctx.arc(x + 82, y - 5, 26, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(x + 82, y - 5, 12, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (id === 'library') {
+                ctx.fillStyle = 'rgba(0,0,0,0.36)';
+                ctx.fillRect(x - 68, y - 75, 145, 155);
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 45, y - 80, 110, 44);
+                ctx.strokeRect(x - 45, y - 80, 110, 44);
+                ctx.fillRect(x + 15, y - 40, 50, 80);
+                ctx.strokeRect(x + 15, y - 40, 50, 80);
+                ctx.fillRect(x - 45, y + 32, 110, 46);
+                ctx.strokeRect(x - 45, y + 32, 110, 46);
+
+                for (let c = -35; c <= 45; c += 20) {
+                    drawWindow(x + c, y - 68, 12, 12);
+                    drawWindow(x + c, y + 45, 12, 12);
+                }
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.beginPath();
+                ctx.arc(x - 28, y - 2, 32, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#38bdf8';
+                ctx.beginPath();
+                ctx.arc(x - 28, y - 2, 16, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else if (id === 'student_union') {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(0.28);
+                ctx.fillStyle = 'rgba(0,0,0,0.34)';
+                ctx.fillRect(-85, -28, 175, 62);
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(-88, -34, 176, 56);
+                ctx.strokeRect(-88, -34, 176, 56);
+
+                ctx.fillStyle = '#84cc16';
+                ctx.fillRect(-80, -28, 160, 22);
+
+                for (let c = -72; c <= 65; c += 22) {
+                    drawWindow(c, 0, 14, 12);
+                }
+                ctx.restore();
+            } else if (id === 'bio_eng_air') {
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+
+                ctx.fillStyle = '#f1f5f9';
+                ctx.fillRect(x - 165, y - 160, 95, 48);
+                ctx.strokeRect(x - 165, y - 160, 95, 48);
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(x - 159, y - 154, 83, 24);
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.fillRect(x - 115, y - 65, 58, 62);
+                ctx.strokeRect(x - 115, y - 65, 58, 62);
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(x - 40, y - 45, 76, 52);
+                ctx.strokeRect(x - 40, y - 45, 76, 52);
+                ctx.fillStyle = '#059669';
+                ctx.fillRect(x - 34, y - 39, 64, 24);
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(x + 50, y - 35, 125, 54);
+                ctx.strokeRect(x + 50, y - 35, 125, 54);
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(x + 56, y - 29, 113, 24);
+
+                for (let c = 60; c <= 155; c += 20) {
+                    drawWindow(x + c, y + 2, 12, 11);
+                }
+            } else if (id === 'south_stadium') {
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.fillRect(x - 210, y - 135, 92, 52);
+                ctx.strokeRect(x - 210, y - 135, 92, 52);
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(x - 202, y - 128, 76, 22);
+
+                ctx.fillStyle = '#f1f5f9';
+                ctx.fillRect(x - 195, y - 45, 105, 56);
+                ctx.strokeRect(x - 195, y - 45, 105, 56);
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(x - 187, y - 38, 89, 24);
+            } else if (id === 'main_gate') {
+                ctx.fillStyle = '#f8fafc';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 55, y - 42, 18, 48);
+                ctx.strokeRect(x - 55, y - 42, 18, 48);
+                ctx.fillRect(x + 37, y - 42, 18, 48);
+                ctx.strokeRect(x + 37, y - 42, 18, 48);
+
+                ctx.fillStyle = '#1e3a8a';
+                ctx.fillRect(x - 65, y - 56, 130, 18);
+                ctx.strokeRect(x - 65, y - 56, 130, 18);
+                ctx.fillStyle = '#fde047';
+                ctx.font = 'bold 10px "Noto Sans KR", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('SILLA UNIVERSITY 정문', x, y - 44);
+
+                ctx.fillStyle = '#1d4ed8';
+                ctx.fillRect(x - 125, y - 14, 56, 28);
+                ctx.strokeRect(x - 125, y - 14, 56, 28);
+                ctx.fillStyle = '#7dd3fc';
+                ctx.fillRect(x - 120, y - 9, 46, 11);
+            } else if (id === 'industry_academic') {
+                ctx.fillStyle = 'rgba(0,0,0,0.34)';
+                ctx.fillRect(x - 85, y - 55, 170, 110);
+
+                ctx.fillStyle = '#0ea5e9';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(x - 80, y - 60, 160, 95);
+                ctx.strokeRect(x - 80, y - 60, 160, 95);
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(x - 65, y - 48, 130, 42);
+                ctx.strokeRect(x - 65, y - 48, 130, 42);
+
+                ctx.fillStyle = '#0284c7';
+                ctx.fillRect(x - 55, y - 40, 110, 26);
+
+                for (let c = -50; c <= 40; c += 25) {
+                    drawWindow(x + c, y - 2, 14, 12);
+                    drawWindow(x + c, y + 18, 14, 12);
+                }
+            }
+
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = '#fde047';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y + 36, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('🚪', x, y + 40);
+
+            const currentQ = MAIN_QUESTS[player.questStep];
+            if (currentQ && currentQ.targetPoi === poi.id && currentQ.type !== 'complete') {
+                ctx.fillStyle = '#facc15';
+                ctx.font = 'bold 24px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('📍', x, y - 92 + Math.sin(time * 4) * 5);
+            }
+
+            const labelY = y + (id === 'arena' ? 85 : (id === 'south_stadium' ? 95 : 68));
+            ctx.font = 'bold 13px "Noto Sans KR", sans-serif';
+            ctx.textAlign = 'center';
+            const textWidth = ctx.measureText(poi.name).width + 38;
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(x - textWidth / 2, labelY - 14, textWidth, 40, 8);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#fde047';
+            ctx.fillText(`${poi.icon} ${poi.name}`, x, labelY + 2);
+
+            ctx.font = '11px "Noto Sans KR", sans-serif';
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillText(poi.subName, x, labelY + 19);
+
+            ctx.restore();
+        }
+
+        function drawNpcWithLabel(npc) {
+            drawDQPixelCharacter(ctx, npc.x, npc.y, {
+                isPlayer: false,
+                isCat: npc.isCat,
+                hair: npc.hair,
+                top: npc.top,
+                bottom: npc.bottom,
+                acc: npc.acc,
+                facing: npc.facing,
+                walkCycle: npc.walkCycle,
+                isMoving: npc.isMoving
+            });
+
+            ctx.save();
+            ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.92)';
+            ctx.lineWidth = 3;
+            ctx.strokeText(npc.name, npc.x, npc.y - 31);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(npc.name, npc.x, npc.y - 31);
+
+            if (npc.currentBubble) {
+                ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+                const bw = ctx.measureText(npc.currentBubble).width + 24;
+                const bx = npc.x - bw / 2;
+                const by = npc.y - 68;
+
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
+                ctx.strokeStyle = '#f8fafc';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(bx, by, bw, 26, 8);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#fde047';
+                ctx.fillText(npc.currentBubble, npc.x, by + 16);
+            }
+            ctx.restore();
+        }
+
+        function drawPlayerCharacter() {
+            ctx.save();
+
+            if (player.sprintTimer > 0) {
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, player.radius + 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            if (player.greetAnimTimer > 0) {
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, 48, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+
+            drawDQPixelCharacter(ctx, player.x, player.y, {
+                isPlayer: true,
+                hair: '#1e1b4b',
+                top: '#1d4ed8',
+                bottom: '#1e293b',
+                facing: player.facing,
+                walkCycle: player.walkCycle,
+                isMoving: player.isMoving
+            });
+
+            ctx.save();
+            ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = '#090d16';
+            ctx.lineWidth = 3.5;
+            ctx.strokeText(`★ ${player.level}학년 · ${player.title}`, player.x, player.y - 35);
+            ctx.fillStyle = '#fde047';
+            ctx.fillText(`★ ${player.level}학년 · ${player.title}`, player.x, player.y - 35);
+            ctx.restore();
+        }
+
+        function drawHD2DPostProcessing() {
+            ctx.save();
+
+            const sunGrad = ctx.createLinearGradient(0, 0, canvas.width * 0.75, canvas.height * 0.75);
+            sunGrad.addColorStop(0, 'rgba(254, 240, 138, 0.14)');
+            sunGrad.addColorStop(0.5, 'rgba(253, 224, 71, 0.04)');
+            sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = sunGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const vigGrad = ctx.createRadialGradient(
+                canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.35,
+                canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.72
+            );
+            vigGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            vigGrad.addColorStop(1, 'rgba(10, 20, 15, 0.32)');
+            ctx.fillStyle = vigGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.restore();
+        }
+
+        function drawMinimap() {
+            const mw = minimapCanvas.width;
+            const mh = minimapCanvas.height;
+
+            miniCtx.clearRect(0, 0, mw, mh);
+
+            if (gameScene === 'indoor') {
+                miniCtx.fillStyle = '#1e293b';
+                miniCtx.fillRect(0, 0, mw, mh);
+                const sx = mw / ROOM_W;
+                const sy = mh / ROOM_H;
+
+                miniCtx.strokeStyle = '#94a3b8';
+                miniCtx.lineWidth = 2;
+                miniCtx.strokeRect(48 * sx, 36 * sy, (ROOM_W - 96) * sx, (ROOM_H - 72) * sy);
+
+                miniCtx.fillStyle = '#a16207';
+                indoorFurnitures.forEach(f => {
+                    miniCtx.fillRect(f.x * sx, f.y * sy, f.w * sx, f.h * sy);
+                });
+
+                miniCtx.fillStyle = '#fde047';
+                indoorNpcs.forEach(inpc => {
+                    miniCtx.beginPath();
+                    miniCtx.arc(inpc.x * sx, inpc.y * sy, 3.5, 0, Math.PI * 2);
+                    miniCtx.fill();
+                });
+
+                miniCtx.fillStyle = '#ffffff';
+                miniCtx.beginPath();
+                miniCtx.arc(player.x * sx, player.y * sy, 4, 0, Math.PI * 2);
+                miniCtx.fill();
+                return;
+            }
+
+            const scaleX = mw / WORLD_W;
+            const scaleY = mh / WORLD_H;
+
+            miniCtx.drawImage(worldBgCanvas, 0, 0, mw, mh);
+
+            const currentQ = MAIN_QUESTS[player.questStep];
+            POIS.forEach(p => {
+                const px = p.x * scaleX;
+                const py = p.y * scaleY;
+                miniCtx.fillStyle = (currentQ && currentQ.targetPoi === p.id) ? '#facc15' : p.color;
+                miniCtx.beginPath();
+                miniCtx.arc(px, py, 4, 0, Math.PI * 2);
+                miniCtx.fill();
+                miniCtx.strokeStyle = '#000';
+                miniCtx.lineWidth = 1;
+                miniCtx.stroke();
+            });
+
+            miniCtx.fillStyle = '#38bdf8';
+            campusNpcs.forEach(npc => {
+                miniCtx.fillRect(npc.x * scaleX - 1.2, npc.y * scaleY - 1.2, 2.5, 2.5);
+            });
+
+            miniCtx.fillStyle = '#ffffff';
+            miniCtx.beginPath();
+            miniCtx.arc(player.x * scaleX, player.y * scaleY, 4, 0, Math.PI * 2);
+            miniCtx.fill();
+            miniCtx.strokeStyle = '#ef4444';
+            miniCtx.lineWidth = 2;
+            miniCtx.stroke();
+        }
+
+        window.addEventListener('keydown', e => {
+            const k = e.key.toLowerCase();
+            keys[k] = true;
+
+            if (k === ' ') {
+                e.preventDefault();
+                performGreetAction();
+            } else if (k === '1') useCampusAction(1);
+            else if (k === '2') useCampusAction(2);
+            else if (k === '3') useCampusAction(3);
+            else if (k === '4') useCampusAction(4);
+            else if (k === 'f' || k === 'enter') {
+                triggerInteraction();
+            } else if (k === 'escape') {
+                if (!document.getElementById('poiModal').classList.contains('hidden')) {
+                    closePoiModal();
+                } else if (gameScene === 'indoor') {
+                    exitIndoorMap();
+                }
+            } else if (k === 'm') {
+                openWorldMapModal();
+            } else if (k === 'i') {
+                openInventoryModal();
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        function setVirtualKey(k, state) {
+            keys[k] = state;
+        }
+
+        // =========================================================================
+        // 9. 모바일 & 마우스 캔버스 터치 드래그 이동 및 상호작용 통합
+        // =========================================================================
+        let isTouchMoving = false;
+
+        function movePlayerTowardPointer(e) {
+            const rect = canvas.getBoundingClientRect();
+            const targetX = (e.clientX - rect.left) + camera.x;
+            const targetY = (e.clientY - rect.top) + camera.y;
+            const dx = targetX - player.x;
+            const dy = targetY - player.y;
+
+            keys['w'] = dy < -18;
+            keys['s'] = dy > 18;
+            keys['a'] = dx < -18;
+            keys['d'] = dx > 18;
+        }
+
+        canvas.addEventListener('pointerdown', e => {
+            const rect = canvas.getBoundingClientRect();
+            const worldClickX = (e.clientX - rect.left) + camera.x;
+            const worldClickY = (e.clientY - rect.top) + camera.y;
+
+            if (gameScene === 'indoor' && activeIndoorPoi) {
+                for (const inpc of indoorNpcs) {
+                    if (Math.hypot(worldClickX - inpc.x, worldClickY - inpc.y) < 48) {
+                        openPoiModal(activeIndoorPoi, inpc.idx);
+                        return;
+                    }
+                }
+                if (Math.abs(worldClickX - ROOM_W / 2) < 65 && worldClickY > ROOM_H - 85) {
+                    exitIndoorMap();
+                    return;
+                }
+            } else if (currentClosestPoi && Math.hypot(worldClickX - currentClosestPoi.x, worldClickY - currentClosestPoi.y) < currentClosestPoi.radius) {
+                enterIndoorMap(currentClosestPoi);
+                return;
+            }
+
+            isTouchMoving = true;
+            movePlayerTowardPointer(e);
+            performGreetAction();
+        });
+
+        canvas.addEventListener('pointermove', e => {
+            if (!isTouchMoving) return;
+            movePlayerTowardPointer(e);
+        });
+
+        function stopTouchMoving() {
+            if (isTouchMoving) {
+                isTouchMoving = false;
+                keys['w'] = keys['s'] = keys['a'] = keys['d'] = false;
+            }
+        }
+
+        window.addEventListener('pointerup', stopTouchMoving);
+        window.addEventListener('pointercancel', stopTouchMoving);
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        let lastTime = performance.now();
+        function gameLoop(now) {
+            const dt = Math.min(0.05, (now - lastTime) / 1000);
+            lastTime = now;
+
+            updateGame(dt);
+            drawGame();
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = function () {
+            resizeCanvas();
+            generateDQTreeSprites();
+            buildDetailedPixelMap();
+            initEnvironment();
+            spawnCampusNpcs();
+            loadGameData();
+            updateUI();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
